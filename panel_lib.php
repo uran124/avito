@@ -168,8 +168,7 @@ function render_panel_header(string $title, string $active): void {
     'admin' => ['/avito/admin.php', 'Админка'],
     'telegram' => ['/avito/telegram.php', 'Telegram'],
     'avito' => ['/avito/avito.php', 'Avito'],
-    'openai' => ['/avito/openai.php', 'OpenAI'],
-    'deepseek' => ['/avito/deepseek.php', 'DeepSeek'],
+    'yandex' => ['/avito/yandex.php', 'Yandex AI Studio'],
   ];
 
   echo '<!doctype html><html lang="ru"><head><meta charset="utf-8">';
