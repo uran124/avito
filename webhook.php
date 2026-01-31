@@ -110,22 +110,37 @@ function openai_responses_create(array $cfg, string $instructions, string $input
     'store' => false,
   ];
 
-  $ch = curl_init($url);
-  curl_setopt_array($ch, [
-    CURLOPT_POST => true,
-    CURLOPT_RETURNTRANSFER => true,
-    CURLOPT_TIMEOUT => 20,
-    CURLOPT_HTTPHEADER => [
-      'Content-Type: application/json',
-      'Authorization: Bearer ' . $cfg['openai_api_key'],
-    ],
-    CURLOPT_POSTFIELDS => json_encode($body, JSON_UNESCAPED_UNICODE),
-  ]);
+  $raw = '';
+  $err = '';
+  $status = 0;
+  $headers = [
+    'Authorization: Bearer ' . $cfg['openai_api_key'],
+  ];
 
-  $raw = curl_exec($ch);
-  $err = curl_error($ch);
-  $status = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
-  curl_close($ch);
+  if (function_exists('curl_init')) {
+    $ch = curl_init($url);
+    curl_setopt_array($ch, [
+      CURLOPT_POST => true,
+      CURLOPT_RETURNTRANSFER => true,
+      CURLOPT_TIMEOUT => 20,
+      CURLOPT_HTTPHEADER => array_merge(['Content-Type: application/json'], $headers),
+      CURLOPT_POSTFIELDS => json_encode($body, JSON_UNESCAPED_UNICODE),
+    ]);
+
+    $raw = (string)curl_exec($ch);
+    $err = curl_error($ch);
+    $status = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+  }
+
+  if ($raw === '' || $err !== '') {
+    $fallback = http_post_json($url, $body, $headers, 20);
+    if ($fallback['error'] !== '') {
+      $err = $err !== '' ? $err : $fallback['error'];
+    }
+    if ($raw === '') $raw = (string)$fallback['raw'];
+    if ($status === 0) $status = (int)$fallback['status'];
+  }
 
   if ($err) return ['_error' => "cURL error: $err"];
   if ($status >= 400) return ['_error' => "HTTP $status", '_raw' => $raw];
@@ -172,22 +187,37 @@ function deepseek_chat_create(array $cfg, string $instructions, string $input): 
     'max_tokens' => (int)($cfg['deepseek_max_output_tokens'] ?? 260),
   ];
 
-  $ch = curl_init($url);
-  curl_setopt_array($ch, [
-    CURLOPT_POST => true,
-    CURLOPT_RETURNTRANSFER => true,
-    CURLOPT_TIMEOUT => 20,
-    CURLOPT_HTTPHEADER => [
-      'Content-Type: application/json',
-      'Authorization: Bearer ' . $cfg['deepseek_api_key'],
-    ],
-    CURLOPT_POSTFIELDS => json_encode($body, JSON_UNESCAPED_UNICODE),
-  ]);
+  $raw = '';
+  $err = '';
+  $status = 0;
+  $headers = [
+    'Authorization: Bearer ' . $cfg['deepseek_api_key'],
+  ];
 
-  $raw = curl_exec($ch);
-  $err = curl_error($ch);
-  $status = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
-  curl_close($ch);
+  if (function_exists('curl_init')) {
+    $ch = curl_init($url);
+    curl_setopt_array($ch, [
+      CURLOPT_POST => true,
+      CURLOPT_RETURNTRANSFER => true,
+      CURLOPT_TIMEOUT => 20,
+      CURLOPT_HTTPHEADER => array_merge(['Content-Type: application/json'], $headers),
+      CURLOPT_POSTFIELDS => json_encode($body, JSON_UNESCAPED_UNICODE),
+    ]);
+
+    $raw = (string)curl_exec($ch);
+    $err = curl_error($ch);
+    $status = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+  }
+
+  if ($raw === '' || $err !== '') {
+    $fallback = http_post_json($url, $body, $headers, 20);
+    if ($fallback['error'] !== '') {
+      $err = $err !== '' ? $err : $fallback['error'];
+    }
+    if ($raw === '') $raw = (string)$fallback['raw'];
+    if ($status === 0) $status = (int)$fallback['status'];
+  }
 
   if ($err) return ['_error' => "cURL error: $err"];
   if ($status >= 400) return ['_error' => "HTTP $status", '_raw' => $raw];

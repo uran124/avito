@@ -104,7 +104,7 @@ tg_webhook.log
 ## 4) Требования
 
 - PHP 8.0+ (желательно 8.1/8.2)
-- Расширение **cURL** (для OpenAI/DeepSeek и Telegram)
+- Расширение **cURL** или включённый `allow_url_fopen` (для OpenAI/DeepSeek и Telegram)
 - MySQL 5.7+/8.0 (опционально)
 - Права на запись в `/avito/_private/`
 

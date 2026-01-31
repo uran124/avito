@@ -99,6 +99,36 @@ function avito_log(string $msg, string $file = 'app.log'): void {
   @file_put_contents(AVITO_LOG_DIR . '/' . $file, $line, FILE_APPEND);
 }
 
+function http_post_json(string $url, array $payload, array $headers = [], int $timeout = 20): array {
+  $headerLines = array_merge(['Content-Type: application/json'], $headers);
+  $context = stream_context_create([
+    'http' => [
+      'method' => 'POST',
+      'header' => implode("\r\n", $headerLines),
+      'content' => json_encode($payload, JSON_UNESCAPED_UNICODE),
+      'timeout' => $timeout,
+    ],
+  ]);
+
+  $raw = @file_get_contents($url, false, $context);
+  $error = $raw === false ? 'HTTP request failed' : '';
+  $status = 0;
+  if (isset($http_response_header) && is_array($http_response_header)) {
+    foreach ($http_response_header as $line) {
+      if (preg_match('/HTTP\\/[0-9.]+\\s+(\\d+)/', $line, $m)) {
+        $status = (int)$m[1];
+        break;
+      }
+    }
+  }
+
+  return [
+    'raw' => $raw === false ? '' : $raw,
+    'status' => $status,
+    'error' => $error,
+  ];
+}
+
 function h(string $s): string {
   return htmlspecialchars($s, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 }
