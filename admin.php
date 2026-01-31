@@ -148,6 +148,9 @@ if (!empty($_POST['save_settings'])) {
   $new['avito_client_id'] = trim((string)($_POST['avito_client_id'] ?? ''));
   $new['avito_client_secret'] = trim((string)($_POST['avito_client_secret'] ?? ''));
   $new['avito_access_token'] = trim((string)($_POST['avito_access_token'] ?? ''));
+  $new['avito_refresh_token'] = trim((string)($_POST['avito_refresh_token'] ?? ''));
+  $new['avito_token_expires_at'] = (int)($_POST['avito_token_expires_at'] ?? 0);
+  $new['avito_user_id'] = trim((string)($_POST['avito_user_id'] ?? ''));
 
   $new['tg_bot_token'] = trim((string)($_POST['tg_bot_token'] ?? ''));
   $new['tg_chat_id'] = trim((string)($_POST['tg_chat_id'] ?? ''));
@@ -188,6 +191,17 @@ try {
 
 $webhookUrl = ((isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http')
   . '://' . ($_SERVER['HTTP_HOST'] ?? 'bunchflowers.ru') . '/avito/webhook.php';
+$oauthRedirectUrl = ((isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http')
+  . '://' . ($_SERVER['HTTP_HOST'] ?? 'bunchflowers.ru') . '/avito/avito_oauth_callback.php';
+$oauthState = bin2hex(random_bytes(12));
+$_SESSION['avito_oauth_state'] = $oauthState;
+$oauthUrl = 'https://avito.ru/oauth?' . http_build_query([
+  'response_type' => 'code',
+  'client_id' => (string)($cfg['avito_client_id'] ?? ''),
+  'scope' => 'messenger:read messenger:write',
+  'redirect_uri' => $oauthRedirectUrl,
+  'state' => $oauthState,
+]);
 
 render_header('Avito Bot Admin');
 render_nav('admin');
@@ -265,7 +279,21 @@ echo '<div class="card">
     </div>
   </div>
   <label>Access token</label>
-  <input name="avito_access_token" value="' . h((string)$cfg['avito_access_token']) . '" placeholder="Bearer ...">
+  <input name="avito_access_token" value="' . h((string)$cfg['avito_access_token']) . '" placeholder="ACCESS_TOKEN">
+  <div class="hint">Access/Refresh токены появляются после OAuth-авторизации — вручную обычно не заполняются.</div>
+  <label>Refresh token</label>
+  <input name="avito_refresh_token" value="' . h((string)($cfg['avito_refresh_token'] ?? '')) . '" placeholder="REFRESH_TOKEN">
+  <label>Token expires at (unix)</label>
+  <input name="avito_token_expires_at" value="' . h((string)($cfg['avito_token_expires_at'] ?? '')) . '" placeholder="0">
+  <label>User ID (account id)</label>
+  <input name="avito_user_id" value="' . h((string)$cfg['avito_user_id']) . '" placeholder="123456789">
+  <label>OAuth redirect URL</label>
+  <input value="' . h($oauthRedirectUrl) . '" readonly>
+  <div class="hint">Зарегистрируйте этот URL в Avito как Redirect URL.</div>
+  <div class="hint">
+    <a href="' . h($oauthUrl) . '">Авторизоваться в Avito (OAuth)</a>
+  </div>
+  <div class="hint">После успешной авторизации токены сохранятся в config.json автоматически.</div>
   <div class="row">
     <div>
       <label>Webhook URL</label>
