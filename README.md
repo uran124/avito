@@ -21,7 +21,9 @@ https://bunchflowers.ru/avito/
 - **/avito/webhook.php** — входящий webhook для Avito (или вашего интегратора/CRM), генерирует ответ через OpenAI.
 - **Telegram уведомления** (Bot API): отправка лидов/событий в TG.
 - **MySQL (опционально)**: хранение диалогов, сообщений, лидов.
-- **/avito/panel.php** — панель: статусы, логирование, управление Telegram webhook, просмотр диалогов (если MySQL включен).
+- **/avito/telegram.php** — управление Telegram webhook, ручные отправки и логи.
+- **/avito/avito.php** — статусы Avito, ручные отправки, диалоги (если MySQL включен).
+- **/avito/openai.php** — ручной чат с OpenAI и логи.
 - **/avito/tg_webhook.php** — приёмник Telegram webhook (для команд, тестов, служебной отправки в Avito через `avito_send_url`).
 - **/avito/admin.php** — базовые настройки (ключи/секреты) + включение MySQL.
 
@@ -30,7 +32,9 @@ https://bunchflowers.ru/avito/
 /avito/
 .htaccess
 admin.php
-panel.php
+telegram.php
+avito.php
+openai.php
 webhook.php
 tg_webhook.php
 
@@ -41,7 +45,7 @@ migrate.sql
 
 /_private/ (создаётся автоматически, лучше создать руками)
 config.json (создастся после сохранения в админке)
-panel_settings.json (создастся после сохранения в panel.php)
+panel_settings.json (создастся после сохранения в telegram.php или avito.php)
 /logs/
 app.log
 in.log
@@ -181,29 +185,29 @@ curl -X POST https://ВАШ_ДОМЕН/avito/webhook.php \
   -d '{"chat_id":"test123","message":{"text":"Сколько стоит 25 роз?"}}'
 
 
-9) Панель panel.php
+9) Панели управления
 
 Откройте:
 
-https://ВАШ_ДОМЕН/avito/panel.php
+https://ВАШ_ДОМЕН/avito/telegram.php
+https://ВАШ_ДОМЕН/avito/avito.php
+https://ВАШ_ДОМЕН/avito/openai.php
 
-Блок Avito
+Telegram:
 
-показывает “живой” статус входящих (по последнему событию в MySQL или in.log)
+- установка/разрыв webhook
+- ручные отправки сообщений
+- логи сообщений боту
 
-показывает готовый URL webhook + секрет (для ручной установки)
+Avito:
 
-Блок Telegram Webhook
+- статус входящих, webhook URL + секрет
+- ручная отправка через avito_send_url
+- диалоги (если MySQL включен)
 
-Панель умеет:
+OpenAI:
 
-Установить Telegram webhook
-
-Разорвать Telegram webhook
-
-Обновить статус TG
-
-Тест в TG
+- ручной чат и просмотр логов
 
 Webhook URL по умолчанию:
 
@@ -264,7 +268,7 @@ tg_webhook.log — входящие Telegram webhook
 
 Ограничьте доступ к admin.php по IP (если возможно).
 
-Доступ к panel.php идёт через сессию админки (логин через admin.php).
+Доступ к страницам telegram.php/avito.php/openai.php идёт через сессию админки (логин через admin.php).
 
 13) Roadmap (следующий шаг под “официальный Avito API”)
 
@@ -283,4 +287,3 @@ avito_client_id, avito_client_secret
 Подтвердить и внедрить проверку подписи входящих webhook (если Avito её использует)
 
 (Опционально) управление webhook Avito из панели (если Avito даёт методы установки/удаления)
-
