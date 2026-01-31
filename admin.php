@@ -277,6 +277,7 @@ echo '<div class="card">
   </div>
   <label>Access token</label>
   <input name="avito_access_token" value="' . h((string)$cfg['avito_access_token']) . '" placeholder="ACCESS_TOKEN">
+  <div class="hint">Access/Refresh токены появляются после OAuth-авторизации — вручную обычно не заполняются.</div>
   <label>Refresh token</label>
   <input name="avito_refresh_token" value="' . h((string)($cfg['avito_refresh_token'] ?? '')) . '" placeholder="REFRESH_TOKEN">
   <label>Token expires at (unix)</label>
@@ -289,6 +290,7 @@ echo '<div class="card">
   <div class="hint">
     <a href="' . h($oauthUrl) . '">Авторизоваться в Avito (OAuth)</a>
   </div>
+  <div class="hint">После успешной авторизации токены сохранятся в config.json автоматически.</div>
   <div class="row">
     <div>
       <label>Webhook URL</label>

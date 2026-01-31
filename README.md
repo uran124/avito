@@ -216,6 +216,7 @@ OAuth (Avito Messenger):
 1) В админке заполните `avito_client_id` и `avito_client_secret`.
 2) В настройках приложения Avito укажите Redirect URL: `https://ВАШ_ДОМЕН/avito/avito_oauth_callback.php`.
 3) Нажмите ссылку “Авторизоваться в Avito (OAuth)” в админке — токены сохранятся автоматически.
+4) В админке появятся `avito_access_token`, `avito_refresh_token` и `avito_user_id` — их не нужно получать вручную.
 
 OpenAI:
 
