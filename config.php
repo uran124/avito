@@ -42,6 +42,9 @@ function avito_default_config(): array {
     'avito_client_id' => '',
     'avito_client_secret' => '',
     'avito_access_token' => '',
+    'avito_refresh_token' => '',
+    'avito_token_expires_at' => 0,
+    'avito_user_id' => '',
 
     // Telegram
     'tg_bot_token' => '',
@@ -91,6 +94,84 @@ function avito_save_config(array $cfg): bool {
   if ($json === false) return false;
 
   return (bool)@file_put_contents(AVITO_CONFIG_FILE, $json . PHP_EOL, LOCK_EX);
+}
+
+function avito_token_is_expired(array $cfg): bool {
+  $expiresAt = (int)($cfg['avito_token_expires_at'] ?? 0);
+  if ($expiresAt <= 0) return false;
+  return time() >= $expiresAt;
+}
+
+function avito_refresh_access_token(array &$cfg): array {
+  $clientId = trim((string)($cfg['avito_client_id'] ?? ''));
+  $clientSecret = trim((string)($cfg['avito_client_secret'] ?? ''));
+  $refreshToken = trim((string)($cfg['avito_refresh_token'] ?? ''));
+  $base = trim((string)($cfg['avito_api_base'] ?? 'https://api.avito.ru'));
+  $base = rtrim($base, '/');
+
+  if ($clientId === '' || $clientSecret === '') {
+    return ['ok' => false, 'error' => 'Не заданы avito_client_id или avito_client_secret'];
+  }
+  if ($refreshToken === '') {
+    return ['ok' => false, 'error' => 'avito_refresh_token пустой'];
+  }
+
+  $url = $base . '/token';
+  $payload = [
+    'grant_type' => 'refresh_token',
+    'client_id' => $clientId,
+    'client_secret' => $clientSecret,
+    'refresh_token' => $refreshToken,
+  ];
+
+  $raw = '';
+  $err = '';
+  $status = 0;
+  if (function_exists('curl_init')) {
+    $ch = curl_init($url);
+    curl_setopt_array($ch, [
+      CURLOPT_POST => true,
+      CURLOPT_RETURNTRANSFER => true,
+      CURLOPT_TIMEOUT => 20,
+      CURLOPT_HTTPHEADER => ['Content-Type: application/x-www-form-urlencoded'],
+      CURLOPT_POSTFIELDS => http_build_query($payload),
+    ]);
+    $raw = (string)curl_exec($ch);
+    $err = curl_error($ch);
+    $status = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+  } else {
+    $context = stream_context_create([
+      'http' => [
+        'method' => 'POST',
+        'header' => 'Content-Type: application/x-www-form-urlencoded',
+        'content' => http_build_query($payload),
+        'timeout' => 20,
+      ],
+    ]);
+    $raw = (string)@file_get_contents($url, false, $context);
+    if (isset($http_response_header) && is_array($http_response_header)) {
+      foreach ($http_response_header as $line) {
+        if (preg_match('/HTTP\\/[0-9.]+\\s+(\\d+)/', $line, $m)) {
+          $status = (int)$m[1];
+          break;
+        }
+      }
+    }
+  }
+
+  if ($err !== '') return ['ok' => false, 'error' => $err];
+  if ($status >= 400 || $raw === '') return ['ok' => false, 'error' => 'HTTP ' . $status, 'raw' => $raw];
+
+  $json = json_decode($raw, true);
+  if (!is_array($json)) return ['ok' => false, 'error' => 'Bad JSON', 'raw' => $raw];
+
+  if (!empty($json['access_token'])) $cfg['avito_access_token'] = (string)$json['access_token'];
+  if (!empty($json['refresh_token'])) $cfg['avito_refresh_token'] = (string)$json['refresh_token'];
+  if (!empty($json['expires_in'])) $cfg['avito_token_expires_at'] = time() + (int)$json['expires_in'];
+  avito_save_config($cfg);
+
+  return ['ok' => true, 'data' => $json];
 }
 
 function avito_log(string $msg, string $file = 'app.log'): void {

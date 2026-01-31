@@ -19,6 +19,39 @@ function extract_last_log_time(string $logPath): ?int {
   return null;
 }
 
+function avito_auth_header(string $token): string {
+  $token = trim($token);
+  if ($token === '') return '';
+  if (stripos($token, 'bearer ') === 0) return 'Authorization: ' . $token;
+  return 'Authorization: Bearer ' . $token;
+}
+
+function avito_send_message_api(array $cfg, string $chatId, string $text): array {
+  $userId = trim((string)($cfg['avito_user_id'] ?? ''));
+  $base = trim((string)($cfg['avito_api_base'] ?? 'https://api.avito.ru'));
+  $base = rtrim($base, '/');
+
+  if ($userId === '') return ['ok' => false, 'error' => 'avito_user_id пустой', 'status' => 0];
+  if (avito_token_is_expired($cfg)) {
+    $refresh = avito_refresh_access_token($cfg);
+    if (!$refresh['ok']) {
+      return ['ok' => false, 'error' => 'Токен истёк: ' . ($refresh['error'] ?? 'refresh error'), 'status' => 0];
+    }
+  }
+
+  $token = trim((string)($cfg['avito_access_token'] ?? ''));
+  if ($token === '') return ['ok' => false, 'error' => 'avito_access_token пустой', 'status' => 0];
+
+  $url = $base . '/messenger/v1/accounts/' . rawurlencode($userId) . '/chats/' . rawurlencode($chatId) . '/messages';
+  $headers = [avito_auth_header($token)];
+  $payload = [
+    'type' => 'text',
+    'message' => ['text' => $text],
+  ];
+
+  return http_request_json('POST', $url, $payload, $headers, 20);
+}
+
 $cfg = avito_get_config();
 $settings = panel_load_settings();
 
@@ -49,8 +82,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $new['avito_webhook_receiver_url'] = trim((string)($_POST['avito_webhook_receiver_url'] ?? ''));
     $new['avito_webhook_secret_header'] = trim((string)($_POST['avito_webhook_secret_header'] ?? 'X-Webhook-Secret'));
     $new['avito_webhook_secret_value'] = trim((string)($_POST['avito_webhook_secret_value'] ?? ''));
-    $new['avito_send_url'] = trim((string)($_POST['avito_send_url'] ?? ''));
-    $new['avito_send_auth_header'] = trim((string)($_POST['avito_send_auth_header'] ?? ''));
     $new['messages_limit'] = (int)($_POST['messages_limit'] ?? $messagesLimit);
     $new['log_tail_lines'] = (int)($_POST['log_tail_lines'] ?? $logTailLines);
 
@@ -66,16 +97,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
   if ($action === 'send_avito_manual') {
     $settings = panel_load_settings();
-    $sendUrl = trim((string)$settings['avito_send_url']);
-    $authHeader = trim((string)$settings['avito_send_auth_header']);
-    $headers = [];
-    if ($authHeader !== '') $headers[] = $authHeader;
-
     $chatId = trim((string)($_POST['avito_chat_id'] ?? ''));
     $text = trim((string)($_POST['avito_text'] ?? ''));
 
-    if ($sendUrl === '') {
-      $flash = 'Не задан avito_send_url в настройках Avito ❌';
+    if (trim((string)($cfg['avito_user_id'] ?? '')) === '') {
+      $flash = 'Не задан avito_user_id в админке ❌';
+      $flashType = 'bad';
+    } elseif (trim((string)($cfg['avito_access_token'] ?? '')) === '') {
+      $flash = 'Не задан avito_access_token в админке ❌';
       $flashType = 'bad';
     } elseif ($chatId === '') {
       $flash = 'Avito chat_id пустой ❌';
@@ -84,8 +113,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       $flash = 'Текст пустой ❌';
       $flashType = 'bad';
     } else {
-      $payload = ['chat_id' => $chatId, 'text' => $text];
-      $res = http_request_json('POST', $sendUrl, $payload, $headers, 20);
+      $res = avito_send_message_api($cfg, $chatId, $text);
       if ($res['ok']) {
         $flash = 'Отправлено в Avito ✅';
         $flashType = 'ok';
@@ -267,17 +295,6 @@ if ($flash !== '') {
 
     <div class="row">
       <div>
-        <label>Avito send URL (ручная отправка)</label>
-        <input name="avito_send_url" value="<?=h((string)$settings['avito_send_url'])?>" placeholder="https://.../sendMessage">
-      </div>
-      <div>
-        <label>Avito send auth header</label>
-        <input name="avito_send_auth_header" value="<?=h((string)$settings['avito_send_auth_header'])?>" placeholder="Authorization: Bearer ...">
-      </div>
-    </div>
-
-    <div class="row">
-      <div>
         <label>Лимит диалогов (20–200)</label>
         <input type="number" name="messages_limit" value="<?=h((string)($settings['messages_limit'] ?? 60))?>" min="20" max="200">
       </div>
@@ -293,7 +310,16 @@ if ($flash !== '') {
 
 <div class="card">
   <h2>Ручная отправка</h2>
-  <div class="hint">Сообщение уйдёт через настроенный <code class="mono">avito_send_url</code>.</div>
+  <?php
+    $apiBase = rtrim((string)($cfg['avito_api_base'] ?? 'https://api.avito.ru'), '/');
+    $apiUserId = (string)($cfg['avito_user_id'] ?? '');
+    $apiToken = mask_secret((string)($cfg['avito_access_token'] ?? ''));
+    $sendUrl = $apiUserId !== '' ? $apiBase . '/messenger/v1/accounts/' . $apiUserId . '/chats/{chat_id}/messages' : '';
+  ?>
+  <div class="hint">Отправка идёт через официальный Avito API. Настройте <strong>Access token</strong> и <strong>User ID</strong> в админке.</div>
+  <div class="hint">API base: <code class="mono"><?=h($apiBase)?></code></div>
+  <div class="hint">User ID: <code class="mono"><?=h($apiUserId ?: 'не задан')?></code>, token: <code class="mono"><?=h($apiToken ?: 'не задан')?></code></div>
+  <div class="hint">Send URL: <code class="mono"><?=h($sendUrl ?: '—')?></code></div>
   <form method="post">
     <input type="hidden" name="csrf_token" value="<?=h(csrf_token())?>">
     <input type="hidden" name="action" value="send_avito_manual">
@@ -305,7 +331,7 @@ if ($flash !== '') {
     <textarea name="avito_text" placeholder="сообщение клиенту"></textarea>
 
     <button type="submit">Отправить в Avito</button>
-    <div class="hint">Текущий send URL: <code class="mono"><?=h((string)($settings['avito_send_url'] ?? ''))?></code></div>
+    <div class="hint">Используется <code class="mono">/messenger/v1/accounts/{user_id}/chats/{chat_id}/messages</code>.</div>
   </form>
 </div>
 
