@@ -29,6 +29,14 @@ function avito_default_config(): array {
     'openai_model' => 'gpt-4.1-mini',
     'openai_max_output_tokens' => 260,
 
+    // DeepSeek
+    'deepseek_api_key' => '',
+    'deepseek_model' => 'deepseek-chat',
+    'deepseek_max_output_tokens' => 260,
+
+    // LLM provider
+    'llm_provider' => 'openai', // openai | deepseek
+
     // Avito API
     'avito_api_base' => 'https://api.avito.ru',
     'avito_client_id' => '',

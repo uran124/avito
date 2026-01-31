@@ -171,6 +171,7 @@ function render_panel_header(string $title, string $active): void {
     'telegram' => ['/avito/telegram.php', 'Telegram'],
     'avito' => ['/avito/avito.php', 'Avito'],
     'openai' => ['/avito/openai.php', 'OpenAI'],
+    'deepseek' => ['/avito/deepseek.php', 'DeepSeek'],
   ];
 
   echo '<!doctype html><html lang="ru"><head><meta charset="utf-8">';

@@ -42,6 +42,7 @@ function render_nav(string $active): void {
     'telegram' => ['/avito/telegram.php', 'Telegram'],
     'avito' => ['/avito/avito.php', 'Avito'],
     'openai' => ['/avito/openai.php', 'OpenAI'],
+    'deepseek' => ['/avito/deepseek.php', 'DeepSeek'],
   ];
   echo '<nav class="nav">';
   foreach ($links as $key => $item) {
@@ -136,6 +137,12 @@ if (!empty($_POST['save_settings'])) {
   $new['openai_api_key'] = trim((string)($_POST['openai_api_key'] ?? ''));
   $new['openai_model'] = trim((string)($_POST['openai_model'] ?? 'gpt-4.1-mini'));
   $new['openai_max_output_tokens'] = (int)($_POST['openai_max_output_tokens'] ?? 260);
+
+  $new['deepseek_api_key'] = trim((string)($_POST['deepseek_api_key'] ?? ''));
+  $new['deepseek_model'] = trim((string)($_POST['deepseek_model'] ?? 'deepseek-chat'));
+  $new['deepseek_max_output_tokens'] = (int)($_POST['deepseek_max_output_tokens'] ?? 260);
+
+  $new['llm_provider'] = (string)($_POST['llm_provider'] ?? 'openai');
 
   $new['avito_api_base'] = trim((string)($_POST['avito_api_base'] ?? 'https://api.avito.ru'));
   $new['avito_client_id'] = trim((string)($_POST['avito_client_id'] ?? ''));
@@ -280,7 +287,17 @@ echo '<div class="card">
 </div>';
 
 echo '<div class="card">
-  <h3>4. Настройка связи с OpenAI</h3>
+  <h3>4. Провайдер ответов (LLM)</h3>
+  <label>Провайдер</label>
+  <select name="llm_provider">
+    <option value="openai" ' . ($cfg['llm_provider']==='openai'?'selected':'') . '>OpenAI</option>
+    <option value="deepseek" ' . ($cfg['llm_provider']==='deepseek'?'selected':'') . '>DeepSeek</option>
+  </select>
+  <div class="hint">Выберите, через какой API формируется ответ для клиентов Avito.</div>
+</div>';
+
+echo '<div class="card">
+  <h3>5. Настройка связи с OpenAI</h3>
   <label>API key</label>
   <input name="openai_api_key" value="' . h((string)$cfg['openai_api_key']) . '" placeholder="sk-...">
   <div class="row">
@@ -294,6 +311,23 @@ echo '<div class="card">
     </div>
   </div>
   <div class="hint">Ручной чат доступен на странице <a href="/avito/openai.php">OpenAI</a>.</div>
+</div>';
+
+echo '<div class="card">
+  <h3>6. Настройка связи с DeepSeek</h3>
+  <label>API key</label>
+  <input name="deepseek_api_key" value="' . h((string)$cfg['deepseek_api_key']) . '" placeholder="sk-...">
+  <div class="row">
+    <div>
+      <label>Model</label>
+      <input name="deepseek_model" value="' . h((string)$cfg['deepseek_model']) . '">
+    </div>
+    <div>
+      <label>Max output tokens</label>
+      <input type="number" name="deepseek_max_output_tokens" value="' . h((string)$cfg['deepseek_max_output_tokens']) . '">
+    </div>
+  </div>
+  <div class="hint">Ручной чат доступен на странице <a href="/avito/deepseek.php">DeepSeek</a>.</div>
 </div>';
 
 echo '<button type="submit">Сохранить</button>';
