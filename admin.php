@@ -186,13 +186,12 @@ try {
   $dbStatus = ['ok' => false, 'msg' => 'Ошибка MySQL: ' . $e->getMessage()];
 }
 
-$webhookUrl = ((isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http')
-  . '://' . ($_SERVER['HTTP_HOST'] ?? 'bunchflowers.ru') . '/avito/webhook.php';
-$oauthRedirectUrl = ((isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http')
-  . '://' . ($_SERVER['HTTP_HOST'] ?? 'bunchflowers.ru') . '/avito/avito_oauth_callback.php';
+$baseUrl = avito_current_base_url();
+$webhookUrl = $baseUrl . '/avito/webhook.php';
+$oauthRedirectUrl = $baseUrl . '/avito/avito_oauth_callback.php';
 $oauthState = bin2hex(random_bytes(12));
 $_SESSION['avito_oauth_state'] = $oauthState;
-$oauthUrl = 'https://avito.ru/oauth?' . http_build_query([
+$oauthUrl = 'https://www.avito.ru/oauth?' . http_build_query([
   'response_type' => 'code',
   'client_id' => (string)($cfg['avito_client_id'] ?? ''),
   'scope' => 'messenger:read messenger:write',

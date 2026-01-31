@@ -50,8 +50,7 @@ $clientId = trim((string)($cfg['avito_client_id'] ?? ''));
 $clientSecret = trim((string)($cfg['avito_client_secret'] ?? ''));
 $base = trim((string)($cfg['avito_api_base'] ?? 'https://api.avito.ru'));
 $base = rtrim($base, '/');
-$redirectUrl = ((isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http')
-  . '://' . ($_SERVER['HTTP_HOST'] ?? 'bunchflowers.ru') . '/avito/avito_oauth_callback.php';
+$redirectUrl = avito_current_base_url() . '/avito/avito_oauth_callback.php';
 
 if ($clientId === '' || $clientSecret === '') {
   render_oauth_page('Avito OAuth', '<p class="bad">Не заданы avito_client_id или avito_client_secret в админке.</p>');

@@ -67,9 +67,7 @@ function panel_save_settings(array $settings): bool {
 }
 
 function current_base_url(): string {
-  $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
-  $host = $_SERVER['HTTP_HOST'] ?? 'bunchflowers.ru';
-  return $scheme . '://' . $host;
+  return avito_current_base_url();
 }
 
 function csrf_token(): string {

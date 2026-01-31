@@ -63,6 +63,32 @@ function avito_default_config(): array {
   ];
 }
 
+function avito_request_scheme(): string {
+  $forwardedProto = trim((string)($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? ''));
+  if ($forwardedProto !== '') {
+    $parts = array_map('trim', explode(',', $forwardedProto));
+    $proto = strtolower($parts[0] ?? '');
+    if ($proto === 'https' || $proto === 'http') {
+      return $proto;
+    }
+  }
+  return (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+}
+
+function avito_request_host(): string {
+  $forwardedHost = trim((string)($_SERVER['HTTP_X_FORWARDED_HOST'] ?? ''));
+  if ($forwardedHost !== '') {
+    $parts = array_map('trim', explode(',', $forwardedHost));
+    $host = $parts[0] ?? '';
+    if ($host !== '') return $host;
+  }
+  return $_SERVER['HTTP_HOST'] ?? 'bunchflowers.ru';
+}
+
+function avito_current_base_url(): string {
+  return avito_request_scheme() . '://' . avito_request_host();
+}
+
 function avito_get_config(): array {
   avito_bootstrap_dirs();
 
