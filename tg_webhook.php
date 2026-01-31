@@ -63,7 +63,7 @@ function avito_auth_header(string $token): string {
   return 'Authorization: Bearer ' . $token;
 }
 
-function avito_send_message(array $cfg, string $chatId, string $text): array {
+function avito_send_message(array &$cfg, string $chatId, string $text): array {
   $userId = trim((string)($cfg['avito_user_id'] ?? ''));
   $base = trim((string)($cfg['avito_api_base'] ?? 'https://api.avito.ru'));
   $base = rtrim($base, '/');
@@ -71,11 +71,9 @@ function avito_send_message(array $cfg, string $chatId, string $text): array {
   if ($userId === '') {
     return ['ok' => false, 'status' => 0, 'error' => 'avito_user_id пустой'];
   }
-  if (avito_token_is_expired($cfg)) {
-    $refresh = avito_refresh_access_token($cfg);
-    if (!$refresh['ok']) {
-      return ['ok' => false, 'status' => 0, 'error' => 'Токен истёк: ' . ($refresh['error'] ?? 'refresh error')];
-    }
+  $tokenReady = avito_prepare_access_token($cfg);
+  if (!$tokenReady['ok']) {
+    return ['ok' => false, 'status' => 0, 'error' => 'Токен недоступен: ' . ($tokenReady['error'] ?? 'token error')];
   }
 
   $token = trim((string)($cfg['avito_access_token'] ?? ''));

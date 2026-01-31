@@ -26,17 +26,15 @@ function avito_auth_header(string $token): string {
   return 'Authorization: Bearer ' . $token;
 }
 
-function avito_send_message_api(array $cfg, string $chatId, string $text): array {
+function avito_send_message_api(array &$cfg, string $chatId, string $text): array {
   $userId = trim((string)($cfg['avito_user_id'] ?? ''));
   $base = trim((string)($cfg['avito_api_base'] ?? 'https://api.avito.ru'));
   $base = rtrim($base, '/');
 
   if ($userId === '') return ['ok' => false, 'error' => 'avito_user_id пустой', 'status' => 0];
-  if (avito_token_is_expired($cfg)) {
-    $refresh = avito_refresh_access_token($cfg);
-    if (!$refresh['ok']) {
-      return ['ok' => false, 'error' => 'Токен истёк: ' . ($refresh['error'] ?? 'refresh error'), 'status' => 0];
-    }
+  $tokenReady = avito_prepare_access_token($cfg);
+  if (!$tokenReady['ok']) {
+    return ['ok' => false, 'error' => 'Токен недоступен: ' . ($tokenReady['error'] ?? 'token error'), 'status' => 0];
   }
 
   $token = trim((string)($cfg['avito_access_token'] ?? ''));
@@ -103,8 +101,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (trim((string)($cfg['avito_user_id'] ?? '')) === '') {
       $flash = 'Не задан avito_user_id в админке ❌';
       $flashType = 'bad';
-    } elseif (trim((string)($cfg['avito_access_token'] ?? '')) === '') {
-      $flash = 'Не задан avito_access_token в админке ❌';
+    } elseif (
+      trim((string)($cfg['avito_access_token'] ?? '')) === ''
+      && trim((string)($cfg['avito_client_id'] ?? '')) === ''
+      && trim((string)($cfg['avito_client_secret'] ?? '')) === ''
+    ) {
+      $flash = 'Не задан avito_access_token или client_id/client_secret ❌';
       $flashType = 'bad';
     } elseif ($chatId === '') {
       $flash = 'Avito chat_id пустой ❌';

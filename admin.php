@@ -124,6 +124,7 @@ if (empty($cfg['admin_password_hash'])) {
 require_login($cfg);
 
 $flash = '';
+$flashClass = 'ok';
 $dbStatus = ['ok' => false, 'msg' => 'MySQL выключен в настройках'];
 
 if (!empty($_POST['save_settings'])) {
@@ -167,8 +168,21 @@ if (!empty($_POST['save_settings'])) {
   if (avito_save_config($new)) {
     $cfg = $new;
     $flash = 'Сохранено ✅';
+    $flashClass = 'ok';
   } else {
     $flash = 'Ошибка сохранения ❌ (проверьте права на /avito/_private/)';
+    $flashClass = 'bad';
+  }
+}
+
+if (!empty($_POST['issue_client_credentials'])) {
+  $res = avito_issue_client_credentials_token($cfg);
+  if ($res['ok']) {
+    $flash = trim($flash . ' Получен токен client_credentials ✅');
+    $flashClass = 'ok';
+  } else {
+    $flash = trim($flash . ' Ошибка client_credentials: ' . ($res['error'] ?? 'token error') . ' ❌');
+    $flashClass = 'bad';
   }
 }
 
@@ -191,7 +205,7 @@ $webhookUrl = $baseUrl . '/avito/webhook.php';
 $oauthRedirectUrl = $baseUrl . '/avito/avito_oauth_callback.php';
 $oauthState = bin2hex(random_bytes(12));
 $_SESSION['avito_oauth_state'] = $oauthState;
-$oauthUrl = 'https://www.avito.ru/oauth?' . http_build_query([
+$oauthUrl = 'https://avito.ru/oauth?' . http_build_query([
   'response_type' => 'code',
   'client_id' => (string)($cfg['avito_client_id'] ?? ''),
   'scope' => 'messenger:read messenger:write',
@@ -203,7 +217,7 @@ render_header('Avito Bot Admin');
 render_nav('admin');
 
 echo '<h1>Настройки бота</h1>';
-if ($flash) echo '<p class="ok">' . h($flash) . '</p>';
+if ($flash) echo '<p class="' . h($flashClass) . '">' . h($flash) . '</p>';
 
 echo '<form method="post">';
 echo '<input type="hidden" name="save_settings" value="1">';
@@ -276,7 +290,7 @@ echo '<div class="card">
   </div>
   <label>Access token</label>
   <input name="avito_access_token" value="' . h((string)$cfg['avito_access_token']) . '" placeholder="ACCESS_TOKEN">
-  <div class="hint">Access/Refresh токены появляются после OAuth-авторизации — вручную обычно не заполняются.</div>
+  <div class="hint">Access/Refresh токены появляются после OAuth-авторизации или client_credentials.</div>
   <label>Refresh token</label>
   <input name="avito_refresh_token" value="' . h((string)($cfg['avito_refresh_token'] ?? '')) . '" placeholder="REFRESH_TOKEN">
   <label>Token expires at (unix)</label>
@@ -290,6 +304,8 @@ echo '<div class="card">
     <a href="' . h($oauthUrl) . '">Авторизоваться в Avito (OAuth)</a>
   </div>
   <div class="hint">После успешной авторизации токены сохранятся в config.json автоматически.</div>
+  <button type="submit" name="issue_client_credentials" value="1">Получить токен (client_credentials)</button>
+  <div class="hint">Подходит для персональной авторизации. Токен действует 24 часа.</div>
   <div class="row">
     <div>
       <label>Webhook URL</label>
