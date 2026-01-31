@@ -125,27 +125,9 @@ function avito_token_is_expired(array $cfg): bool {
   return time() >= $expiresAt;
 }
 
-function avito_refresh_access_token(array &$cfg): array {
-  $clientId = trim((string)($cfg['avito_client_id'] ?? ''));
-  $clientSecret = trim((string)($cfg['avito_client_secret'] ?? ''));
-  $refreshToken = trim((string)($cfg['avito_refresh_token'] ?? ''));
-  $base = trim((string)($cfg['avito_api_base'] ?? 'https://api.avito.ru'));
+function avito_request_token(string $base, array $payload): array {
   $base = rtrim($base, '/');
-
-  if ($clientId === '' || $clientSecret === '') {
-    return ['ok' => false, 'error' => 'Не заданы avito_client_id или avito_client_secret'];
-  }
-  if ($refreshToken === '') {
-    return ['ok' => false, 'error' => 'avito_refresh_token пустой'];
-  }
-
   $url = $base . '/token';
-  $payload = [
-    'grant_type' => 'refresh_token',
-    'client_id' => $clientId,
-    'client_secret' => $clientSecret,
-    'refresh_token' => $refreshToken,
-  ];
 
   $raw = '';
   $err = '';
@@ -189,12 +171,87 @@ function avito_refresh_access_token(array &$cfg): array {
   $json = json_decode($raw, true);
   if (!is_array($json)) return ['ok' => false, 'error' => 'Bad JSON', 'raw' => $raw];
 
+  return ['ok' => true, 'data' => $json];
+}
+
+function avito_refresh_access_token(array &$cfg): array {
+  $clientId = trim((string)($cfg['avito_client_id'] ?? ''));
+  $clientSecret = trim((string)($cfg['avito_client_secret'] ?? ''));
+  $refreshToken = trim((string)($cfg['avito_refresh_token'] ?? ''));
+  $base = trim((string)($cfg['avito_api_base'] ?? 'https://api.avito.ru'));
+
+  if ($clientId === '' || $clientSecret === '') {
+    return ['ok' => false, 'error' => 'Не заданы avito_client_id или avito_client_secret'];
+  }
+  if ($refreshToken === '') {
+    return ['ok' => false, 'error' => 'avito_refresh_token пустой'];
+  }
+
+  $payload = [
+    'grant_type' => 'refresh_token',
+    'client_id' => $clientId,
+    'client_secret' => $clientSecret,
+    'refresh_token' => $refreshToken,
+  ];
+
+  $res = avito_request_token($base, $payload);
+  if (!$res['ok']) return $res;
+  $json = $res['data'];
+
   if (!empty($json['access_token'])) $cfg['avito_access_token'] = (string)$json['access_token'];
   if (!empty($json['refresh_token'])) $cfg['avito_refresh_token'] = (string)$json['refresh_token'];
   if (!empty($json['expires_in'])) $cfg['avito_token_expires_at'] = time() + (int)$json['expires_in'];
   avito_save_config($cfg);
 
   return ['ok' => true, 'data' => $json];
+}
+
+function avito_issue_client_credentials_token(array &$cfg): array {
+  $clientId = trim((string)($cfg['avito_client_id'] ?? ''));
+  $clientSecret = trim((string)($cfg['avito_client_secret'] ?? ''));
+  $base = trim((string)($cfg['avito_api_base'] ?? 'https://api.avito.ru'));
+
+  if ($clientId === '' || $clientSecret === '') {
+    return ['ok' => false, 'error' => 'Не заданы avito_client_id или avito_client_secret'];
+  }
+
+  $payload = [
+    'grant_type' => 'client_credentials',
+    'client_id' => $clientId,
+    'client_secret' => $clientSecret,
+  ];
+
+  $res = avito_request_token($base, $payload);
+  if (!$res['ok']) return $res;
+  $json = $res['data'];
+
+  if (!empty($json['access_token'])) $cfg['avito_access_token'] = (string)$json['access_token'];
+  if (!empty($json['expires_in'])) $cfg['avito_token_expires_at'] = time() + (int)$json['expires_in'];
+  avito_save_config($cfg);
+
+  return ['ok' => true, 'data' => $json];
+}
+
+function avito_prepare_access_token(array &$cfg): array {
+  $token = trim((string)($cfg['avito_access_token'] ?? ''));
+  $expired = avito_token_is_expired($cfg);
+
+  if ($token !== '' && !$expired) {
+    return ['ok' => true];
+  }
+
+  $lastError = '';
+  if (trim((string)($cfg['avito_refresh_token'] ?? '')) !== '') {
+    $res = avito_refresh_access_token($cfg);
+    if ($res['ok']) return ['ok' => true, 'data' => $res['data'] ?? []];
+    $lastError = (string)($res['error'] ?? 'refresh error');
+  }
+
+  $res = avito_issue_client_credentials_token($cfg);
+  if ($res['ok']) return ['ok' => true, 'data' => $res['data'] ?? []];
+  $lastError = (string)($res['error'] ?? $lastError ?: 'token error');
+
+  return ['ok' => false, 'error' => $lastError];
 }
 
 function avito_log(string $msg, string $file = 'app.log'): void {
