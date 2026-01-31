@@ -28,11 +28,18 @@ function avito_auth_header(string $token): string {
 
 function avito_send_message_api(array $cfg, string $chatId, string $text): array {
   $userId = trim((string)($cfg['avito_user_id'] ?? ''));
-  $token = trim((string)($cfg['avito_access_token'] ?? ''));
   $base = trim((string)($cfg['avito_api_base'] ?? 'https://api.avito.ru'));
   $base = rtrim($base, '/');
 
   if ($userId === '') return ['ok' => false, 'error' => 'avito_user_id пустой', 'status' => 0];
+  if (avito_token_is_expired($cfg)) {
+    $refresh = avito_refresh_access_token($cfg);
+    if (!$refresh['ok']) {
+      return ['ok' => false, 'error' => 'Токен истёк: ' . ($refresh['error'] ?? 'refresh error'), 'status' => 0];
+    }
+  }
+
+  $token = trim((string)($cfg['avito_access_token'] ?? ''));
   if ($token === '') return ['ok' => false, 'error' => 'avito_access_token пустой', 'status' => 0];
 
   $url = $base . '/messenger/v1/accounts/' . rawurlencode($userId) . '/chats/' . rawurlencode($chatId) . '/messages';

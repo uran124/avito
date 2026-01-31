@@ -65,17 +65,23 @@ function avito_auth_header(string $token): string {
 
 function avito_send_message(array $cfg, string $chatId, string $text): array {
   $userId = trim((string)($cfg['avito_user_id'] ?? ''));
-  $token = trim((string)($cfg['avito_access_token'] ?? ''));
   $base = trim((string)($cfg['avito_api_base'] ?? 'https://api.avito.ru'));
   $base = rtrim($base, '/');
 
   if ($userId === '') {
     return ['ok' => false, 'status' => 0, 'error' => 'avito_user_id пустой'];
   }
+  if (avito_token_is_expired($cfg)) {
+    $refresh = avito_refresh_access_token($cfg);
+    if (!$refresh['ok']) {
+      return ['ok' => false, 'status' => 0, 'error' => 'Токен истёк: ' . ($refresh['error'] ?? 'refresh error')];
+    }
+  }
+
+  $token = trim((string)($cfg['avito_access_token'] ?? ''));
   if ($token === '') {
     return ['ok' => false, 'status' => 0, 'error' => 'avito_access_token пустой'];
   }
-
   $url = $base . '/messenger/v1/accounts/' . rawurlencode($userId) . '/chats/' . rawurlencode($chatId) . '/messages';
   $headers = [
     'Content-Type: application/json',

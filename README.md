@@ -23,7 +23,8 @@ https://bunchflowers.ru/avito/
 - **MySQL (опционально)**: хранение диалогов, сообщений, лидов.
 - **/avito/telegram.php** — управление Telegram webhook, ручные отправки и логи.
 - **/avito/avito.php** — статусы Avito, ручные отправки, диалоги (если MySQL включен).
-- **/avito/yandex.php** — ручной чат с Yandex AI Studio и логи.
+- **/avito/openai.php** — ручной чат с OpenAI и логи.
+- **/avito/deepseek.php** — ручной чат с DeepSeek и логи.
 - **/avito/tg_webhook.php** — приёмник Telegram webhook (для команд, тестов, служебной отправки в Avito через официальный Avito API).
 - **/avito/admin.php** — базовые настройки (ключи/секреты) + включение MySQL.
 
@@ -34,7 +35,9 @@ https://bunchflowers.ru/avito/
 admin.php
 telegram.php
 avito.php
-yandex.php
+avito_oauth_callback.php
+openai.php
+deepseek.php
 webhook.php
 tg_webhook.php
 
@@ -208,7 +211,17 @@ Avito:
 - ручная отправка через официальный Avito API (messenger)
 - диалоги (если MySQL включен)
 
-Yandex AI Studio:
+OAuth (Avito Messenger):
+
+1) В админке заполните `avito_client_id` и `avito_client_secret`.
+2) В настройках приложения Avito укажите Redirect URL: `https://ВАШ_ДОМЕН/avito/avito_oauth_callback.php`.
+3) Нажмите ссылку “Авторизоваться в Avito (OAuth)” в админке — токены сохранятся автоматически.
+
+OpenAI:
+
+- ручной чат и просмотр логов
+
+DeepSeek:
 
 - ручной чат и просмотр логов
 
@@ -268,7 +281,7 @@ tg_webhook.log — входящие Telegram webhook
 
 Ограничьте доступ к admin.php по IP (если возможно).
 
-Доступ к страницам telegram.php/avito.php/yandex.php идёт через сессию админки (логин через admin.php).
+Доступ к страницам telegram.php/avito.php/openai.php идёт через сессию админки (логин через admin.php).
 
 13) Roadmap (автоматизация OAuth и расширение Avito API)
 
