@@ -96,102 +96,39 @@ function tg_send(array $cfg, string $text): void {
   else avito_log("TG ok: " . substr((string)$resp, 0, 200), 'tg.log');
 }
 
-function openai_responses_create(array $cfg, string $instructions, string $input): array {
-  if (empty($cfg['openai_api_key'])) {
-    return ['_error' => 'OpenAI key is empty'];
+function yandex_completion_create(array $cfg, string $instructions, string $input): array {
+  if (empty($cfg['yandex_api_key'])) {
+    return ['_error' => 'Yandex API key is empty'];
+  }
+  if (empty($cfg['yandex_folder_id'])) {
+    return ['_error' => 'Yandex folder ID is empty'];
   }
 
-  $url = 'https://api.openai.com/v1/responses';
-  $body = [
-    'model' => $cfg['openai_model'] ?: 'gpt-4.1-mini',
-    'instructions' => $instructions,
-    'input' => $input,
-    'max_output_tokens' => (int)($cfg['openai_max_output_tokens'] ?? 260),
-    'store' => false,
-  ];
-
-  $raw = '';
-  $err = '';
-  $status = 0;
-  $headers = [
-    'Authorization: Bearer ' . $cfg['openai_api_key'],
-  ];
-
-  if (function_exists('curl_init')) {
-    $ch = curl_init($url);
-    curl_setopt_array($ch, [
-      CURLOPT_POST => true,
-      CURLOPT_RETURNTRANSFER => true,
-      CURLOPT_TIMEOUT => 20,
-      CURLOPT_HTTPHEADER => array_merge(['Content-Type: application/json'], $headers),
-      CURLOPT_POSTFIELDS => json_encode($body, JSON_UNESCAPED_UNICODE),
-    ]);
-
-    $raw = (string)curl_exec($ch);
-    $err = curl_error($ch);
-    $status = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
-  }
-
-  if ($raw === '' || $err !== '') {
-    $fallback = http_post_json($url, $body, $headers, 20);
-    if ($fallback['error'] !== '') {
-      $err = $err !== '' ? $err : $fallback['error'];
-    }
-    if ($raw === '') $raw = (string)$fallback['raw'];
-    if ($status === 0) $status = (int)$fallback['status'];
-  }
-
-  if ($err) return ['_error' => "cURL error: $err"];
-  if ($status >= 400) return ['_error' => "HTTP $status", '_raw' => $raw];
-
-  $json = json_decode((string)$raw, true);
-  if (!is_array($json)) return ['_error' => 'Bad JSON from OpenAI', '_raw' => $raw];
-
-  return $json;
-}
-
-function extract_openai_text(array $resp): string {
-  if (isset($resp['output_text']) && is_string($resp['output_text']) && trim($resp['output_text']) !== '') {
-    return trim($resp['output_text']);
-  }
-  $texts = [];
-  if (isset($resp['output']) && is_array($resp['output'])) {
-    foreach ($resp['output'] as $item) {
-      if (($item['type'] ?? '') === 'message' && isset($item['content']) && is_array($item['content'])) {
-        foreach ($item['content'] as $part) {
-          $t = $part['text'] ?? null;
-          if (is_string($t) && $t !== '') $texts[] = $t;
-        }
-      }
-    }
-  }
-  return trim(implode("\n", $texts));
-}
-
-function deepseek_chat_create(array $cfg, string $instructions, string $input): array {
-  if (empty($cfg['deepseek_api_key'])) {
-    return ['_error' => 'DeepSeek key is empty'];
-  }
-
-  $url = 'https://api.deepseek.com/v1/chat/completions';
+  $url = 'https://llm.api.cloud.yandex.net/foundationModels/v1/completion';
   $messages = [];
   if (trim($instructions) !== '') {
-    $messages[] = ['role' => 'system', 'content' => $instructions];
+    $messages[] = ['role' => 'system', 'text' => $instructions];
   }
-  $messages[] = ['role' => 'user', 'content' => $input];
+  $messages[] = ['role' => 'user', 'text' => $input];
+
+  $model = trim((string)($cfg['yandex_model'] ?? 'yandexgpt/latest'));
+  $modelUri = 'gpt://' . $cfg['yandex_folder_id'] . '/' . $model;
 
   $body = [
-    'model' => $cfg['deepseek_model'] ?: 'deepseek-chat',
+    'modelUri' => $modelUri,
+    'completionOptions' => [
+      'stream' => false,
+      'temperature' => (float)($cfg['yandex_temperature'] ?? 0.2),
+      'maxTokens' => (int)($cfg['yandex_max_tokens'] ?? 260),
+    ],
     'messages' => $messages,
-    'max_tokens' => (int)($cfg['deepseek_max_output_tokens'] ?? 260),
   ];
 
   $raw = '';
   $err = '';
   $status = 0;
   $headers = [
-    'Authorization: Bearer ' . $cfg['deepseek_api_key'],
+    'Authorization: Api-Key ' . $cfg['yandex_api_key'],
   ];
 
   if (function_exists('curl_init')) {
@@ -223,14 +160,14 @@ function deepseek_chat_create(array $cfg, string $instructions, string $input): 
   if ($status >= 400) return ['_error' => "HTTP $status", '_raw' => $raw];
 
   $json = json_decode((string)$raw, true);
-  if (!is_array($json)) return ['_error' => 'Bad JSON from DeepSeek', '_raw' => $raw];
+  if (!is_array($json)) return ['_error' => 'Bad JSON from Yandex AI Studio', '_raw' => $raw];
 
   return $json;
 }
 
-function extract_deepseek_text(array $resp): string {
-  if (isset($resp['choices'][0]['message']['content'])) {
-    $content = $resp['choices'][0]['message']['content'];
+function extract_yandex_text(array $resp): string {
+  if (isset($resp['result']['alternatives'][0]['message']['text'])) {
+    $content = $resp['result']['alternatives'][0]['message']['text'];
     if (is_string($content) && trim($content) !== '') {
       return trim($content);
     }
@@ -384,27 +321,16 @@ $instructions =
  * Call LLM provider
  * ========================= */
 
-$provider = (string)($cfg['llm_provider'] ?? 'openai');
 $resp = [];
 $reply = '';
 $fallbackReply = "Подскажите, пожалуйста: сколько роз нужно и на какую дату/время?";
 
-if ($provider === 'deepseek') {
-  $resp = deepseek_chat_create($cfg, $instructions, $text);
-  if (isset($resp['_error'])) {
-    avito_log("DeepSeek error: " . $resp['_error'] . " raw=" . ($resp['_raw'] ?? ''), 'deepseek.log');
-    $reply = $fallbackReply;
-  } else {
-    $reply = extract_deepseek_text($resp);
-  }
+$resp = yandex_completion_create($cfg, $instructions, $text);
+if (isset($resp['_error'])) {
+  avito_log("Yandex AI Studio error: " . $resp['_error'] . " raw=" . ($resp['_raw'] ?? ''), 'yandex.log');
+  $reply = $fallbackReply;
 } else {
-  $resp = openai_responses_create($cfg, $instructions, $text);
-  if (isset($resp['_error'])) {
-    avito_log("OpenAI error: " . $resp['_error'] . " raw=" . ($resp['_raw'] ?? ''), 'openai.log');
-    $reply = $fallbackReply;
-  } else {
-    $reply = extract_openai_text($resp);
-  }
+  $reply = extract_yandex_text($resp);
 }
 
 if ($reply === '') {

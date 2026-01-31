@@ -24,18 +24,15 @@ function avito_default_config(): array {
     // админка
     'admin_password_hash' => '',
 
-    // OpenAI
-    'openai_api_key' => '',
-    'openai_model' => 'gpt-4.1-mini',
-    'openai_max_output_tokens' => 260,
-
-    // DeepSeek
-    'deepseek_api_key' => '',
-    'deepseek_model' => 'deepseek-chat',
-    'deepseek_max_output_tokens' => 260,
+    // Yandex AI Studio
+    'yandex_api_key' => '',
+    'yandex_folder_id' => '',
+    'yandex_model' => 'yandexgpt/latest',
+    'yandex_max_tokens' => 260,
+    'yandex_temperature' => 0.2,
 
     // LLM provider
-    'llm_provider' => 'openai', // openai | deepseek
+    'llm_provider' => 'yandex', // yandex
 
     // Avito API
     'avito_api_base' => 'https://api.avito.ru',
