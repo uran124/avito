@@ -377,7 +377,7 @@ if (is_array($tgInfo) && isset($tgInfo['result']) && is_array($tgInfo['result'])
     <input name="tg_to" value="<?=h((string)($cfg['tg_chat_id'] ?? ''))?>" placeholder="-100... или 123456">
 
     <label>Thread ID (topic)</label>
-    <input name="tg_thread_id" value="" placeholder="например 12345">
+    <input name="tg_thread_id" value="<?=h((string)($cfg['tg_thread_id'] ?? ''))?>" placeholder="например 12345">
     <div class="hint">Укажите, если отправляете в тему группы (message_thread_id).</div>
 
     <label>Текст</label>

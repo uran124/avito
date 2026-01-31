@@ -75,6 +75,10 @@ function tg_send(array $cfg, string $text): void {
     'text' => $text,
     'disable_web_page_preview' => true,
   ];
+  $threadId = trim((string)($cfg['tg_thread_id'] ?? ''));
+  if ($threadId !== '' && ctype_digit($threadId)) {
+    $payload['message_thread_id'] = (int)$threadId;
+  }
 
   $ch = curl_init($url);
   curl_setopt_array($ch, [

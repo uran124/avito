@@ -38,6 +38,7 @@ function avito_default_config(): array {
     // Telegram
     'tg_bot_token' => '',
     'tg_chat_id' => '',
+    'tg_thread_id' => '',
     'tg_notify_mode' => 'handoff',   // handoff | always | never
 
     // лидоген
