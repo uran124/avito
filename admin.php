@@ -41,8 +41,7 @@ function render_nav(string $active): void {
     'admin' => ['/avito/admin.php', 'Админка'],
     'telegram' => ['/avito/telegram.php', 'Telegram'],
     'avito' => ['/avito/avito.php', 'Avito'],
-    'openai' => ['/avito/openai.php', 'OpenAI'],
-    'deepseek' => ['/avito/deepseek.php', 'DeepSeek'],
+    'yandex' => ['/avito/yandex.php', 'Yandex AI Studio'],
   ];
   echo '<nav class="nav">';
   foreach ($links as $key => $item) {
@@ -134,15 +133,13 @@ if (!empty($_POST['save_settings'])) {
   $ips = trim((string)($_POST['allow_ips'] ?? ''));
   $new['allow_ips'] = $ips === '' ? [] : array_values(array_filter(array_map('trim', preg_split('/[\s,]+/', $ips) ?: [])));
 
-  $new['openai_api_key'] = trim((string)($_POST['openai_api_key'] ?? ''));
-  $new['openai_model'] = trim((string)($_POST['openai_model'] ?? 'gpt-4.1-mini'));
-  $new['openai_max_output_tokens'] = (int)($_POST['openai_max_output_tokens'] ?? 260);
+  $new['yandex_api_key'] = trim((string)($_POST['yandex_api_key'] ?? ''));
+  $new['yandex_folder_id'] = trim((string)($_POST['yandex_folder_id'] ?? ''));
+  $new['yandex_model'] = trim((string)($_POST['yandex_model'] ?? 'yandexgpt/latest'));
+  $new['yandex_max_tokens'] = (int)($_POST['yandex_max_tokens'] ?? 260);
+  $new['yandex_temperature'] = (float)($_POST['yandex_temperature'] ?? 0.2);
 
-  $new['deepseek_api_key'] = trim((string)($_POST['deepseek_api_key'] ?? ''));
-  $new['deepseek_model'] = trim((string)($_POST['deepseek_model'] ?? 'deepseek-chat'));
-  $new['deepseek_max_output_tokens'] = (int)($_POST['deepseek_max_output_tokens'] ?? 260);
-
-  $new['llm_provider'] = (string)($_POST['llm_provider'] ?? 'openai');
+  $new['llm_provider'] = (string)($_POST['llm_provider'] ?? 'yandex');
 
   $new['avito_api_base'] = trim((string)($_POST['avito_api_base'] ?? 'https://api.avito.ru'));
   $new['avito_client_id'] = trim((string)($_POST['avito_client_id'] ?? ''));
@@ -318,44 +315,34 @@ echo '<div class="card">
   <h3>4. Провайдер ответов (LLM)</h3>
   <label>Провайдер</label>
   <select name="llm_provider">
-    <option value="openai" ' . ($cfg['llm_provider']==='openai'?'selected':'') . '>OpenAI</option>
-    <option value="deepseek" ' . ($cfg['llm_provider']==='deepseek'?'selected':'') . '>DeepSeek</option>
+    <option value="yandex" ' . ($cfg['llm_provider']==='yandex'?'selected':'') . '>Yandex AI Studio</option>
   </select>
   <div class="hint">Выберите, через какой API формируется ответ для клиентов Avito.</div>
 </div>';
 
 echo '<div class="card">
-  <h3>5. Настройка связи с OpenAI</h3>
-  <label>API key</label>
-  <input name="openai_api_key" value="' . h((string)$cfg['openai_api_key']) . '" placeholder="sk-...">
+  <h3>5. Настройка связи с Yandex AI Studio</h3>
+  <label>API key (Yandex Cloud)</label>
+  <input name="yandex_api_key" value="' . h((string)$cfg['yandex_api_key']) . '" placeholder="AQVN...">
+  <label>Folder ID</label>
+  <input name="yandex_folder_id" value="' . h((string)$cfg['yandex_folder_id']) . '" placeholder="b1g...">
   <div class="row">
     <div>
       <label>Model</label>
-      <input name="openai_model" value="' . h((string)$cfg['openai_model']) . '">
+      <input name="yandex_model" value="' . h((string)$cfg['yandex_model']) . '">
     </div>
     <div>
-      <label>Max output tokens</label>
-      <input type="number" name="openai_max_output_tokens" value="' . h((string)$cfg['openai_max_output_tokens']) . '">
+      <label>Max tokens</label>
+      <input type="number" name="yandex_max_tokens" value="' . h((string)$cfg['yandex_max_tokens']) . '">
     </div>
   </div>
-  <div class="hint">Ручной чат доступен на странице <a href="/avito/openai.php">OpenAI</a>.</div>
-</div>';
-
-echo '<div class="card">
-  <h3>6. Настройка связи с DeepSeek</h3>
-  <label>API key</label>
-  <input name="deepseek_api_key" value="' . h((string)$cfg['deepseek_api_key']) . '" placeholder="sk-...">
   <div class="row">
     <div>
-      <label>Model</label>
-      <input name="deepseek_model" value="' . h((string)$cfg['deepseek_model']) . '">
-    </div>
-    <div>
-      <label>Max output tokens</label>
-      <input type="number" name="deepseek_max_output_tokens" value="' . h((string)$cfg['deepseek_max_output_tokens']) . '">
+      <label>Temperature</label>
+      <input type="number" step="0.01" min="0" max="1" name="yandex_temperature" value="' . h((string)$cfg['yandex_temperature']) . '">
     </div>
   </div>
-  <div class="hint">Ручной чат доступен на странице <a href="/avito/deepseek.php">DeepSeek</a>.</div>
+  <div class="hint">Ручной чат доступен на странице <a href="/avito/yandex.php">Yandex AI Studio</a>.</div>
 </div>';
 
 echo '<button type="submit">Сохранить</button>';
