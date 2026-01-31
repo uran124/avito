@@ -25,7 +25,7 @@ https://bunchflowers.ru/avito/
 - **/avito/avito.php** — статусы Avito, ручные отправки, диалоги (если MySQL включен).
 - **/avito/openai.php** — ручной чат с OpenAI и логи.
 - **/avito/deepseek.php** — ручной чат с DeepSeek и логи.
-- **/avito/tg_webhook.php** — приёмник Telegram webhook (для команд, тестов, служебной отправки в Avito через `avito_send_url`).
+- **/avito/tg_webhook.php** — приёмник Telegram webhook (для команд, тестов, служебной отправки в Avito через официальный Avito API).
 - **/avito/admin.php** — базовые настройки (ключи/секреты) + включение MySQL.
 
 ### Структура папки `/avito/`
@@ -210,7 +210,7 @@ Telegram:
 Avito:
 
 - статус входящих, webhook URL + секрет
-- ручная отправка через avito_send_url
+- ручная отправка через официальный Avito API (messenger)
 - диалоги (если MySQL включен)
 
 OpenAI:
@@ -245,10 +245,7 @@ X-Telegram-Bot-Api-Secret-Token
 
 /help
 
-/avito <chat_id> <текст> — отправка сообщения “в Avito” через avito_send_url (если задан в panel settings)
-
-Сейчас “отправка в Avito” в проекте реализована через внешний avito_send_url.
-Для “напрямую через официальный Avito API” потребуется отдельный модуль OAuth + Messenger API (см. Roadmap).
+/avito <chat_id> <текст> — отправка сообщения “в Avito” через официальный Avito API (нужны avito_user_id и avito_access_token)
 
 11) Логи
 
@@ -283,19 +280,10 @@ tg_webhook.log — входящие Telegram webhook
 
 Доступ к страницам telegram.php/avito.php/openai.php идёт через сессию админки (логин через admin.php).
 
-13) Roadmap (следующий шаг под “официальный Avito API”)
+13) Roadmap (автоматизация OAuth и расширение Avito API)
 
-Чтобы перейти на прямую интеграцию с Avito Messenger API:
-
-Добавить в config.json:
-
-avito_client_id, avito_client_secret
-
-токены/кеширование токена
-
-Реализовать OAuth client_credentials
-
-Реализовать отправку сообщений в Avito Messenger API (вместо avito_send_url)
+- Автоматизировать получение/обновление access token через OAuth client_credentials
+- Добавить кеширование токена и автоматическую ротацию
 
 Подтвердить и внедрить проверку подписи входящих webhook (если Avito её использует)
 

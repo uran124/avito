@@ -148,6 +148,7 @@ if (!empty($_POST['save_settings'])) {
   $new['avito_client_id'] = trim((string)($_POST['avito_client_id'] ?? ''));
   $new['avito_client_secret'] = trim((string)($_POST['avito_client_secret'] ?? ''));
   $new['avito_access_token'] = trim((string)($_POST['avito_access_token'] ?? ''));
+  $new['avito_user_id'] = trim((string)($_POST['avito_user_id'] ?? ''));
 
   $new['tg_bot_token'] = trim((string)($_POST['tg_bot_token'] ?? ''));
   $new['tg_chat_id'] = trim((string)($_POST['tg_chat_id'] ?? ''));
@@ -265,7 +266,9 @@ echo '<div class="card">
     </div>
   </div>
   <label>Access token</label>
-  <input name="avito_access_token" value="' . h((string)$cfg['avito_access_token']) . '" placeholder="Bearer ...">
+  <input name="avito_access_token" value="' . h((string)$cfg['avito_access_token']) . '" placeholder="ACCESS_TOKEN">
+  <label>User ID (account id)</label>
+  <input name="avito_user_id" value="' . h((string)$cfg['avito_user_id']) . '" placeholder="123456789">
   <div class="row">
     <div>
       <label>Webhook URL</label>

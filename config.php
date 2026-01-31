@@ -42,6 +42,7 @@ function avito_default_config(): array {
     'avito_client_id' => '',
     'avito_client_secret' => '',
     'avito_access_token' => '',
+    'avito_user_id' => '',
 
     // Telegram
     'tg_bot_token' => '',
