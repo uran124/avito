@@ -136,7 +136,7 @@ if (mb_strpos($cmd, '/avito') === 0) {
   $authHeader = trim((string)($settings['avito_send_auth_header'] ?? ''));
 
   if ($sendUrl === '') {
-    tg_reply((string)$cfg['tg_bot_token'], $chatId, 'Не задан avito_send_url в panel.php');
+    tg_reply((string)$cfg['tg_bot_token'], $chatId, 'Не задан avito_send_url на странице Avito (avito.php)');
     echo json_encode(['ok' => true], JSON_UNESCAPED_UNICODE);
     exit;
   }

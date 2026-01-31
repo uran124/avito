@@ -26,11 +26,30 @@ function render_header(string $title): void {
     code{background:#f6f6f6;padding:2px 6px;border-radius:8px;}
     .ok{color:#0a7a2a;font-weight:600;}
     .bad{color:#b00020;font-weight:600;}
+    .nav{display:flex;gap:10px;flex-wrap:wrap;margin:12px 0 18px}
+    .nav a{padding:8px 10px;border-radius:10px;background:#fff;border:1px solid #eee;text-decoration:none;color:#111}
+    .nav a.active{background:#111;border-color:#111;color:#fff}
   </style></head><body>';
 }
 
 function render_footer(): void {
   echo '</body></html>';
+}
+
+function render_nav(string $active): void {
+  $links = [
+    'admin' => ['/avito/admin.php', 'Админка'],
+    'telegram' => ['/avito/telegram.php', 'Telegram'],
+    'avito' => ['/avito/avito.php', 'Avito'],
+    'openai' => ['/avito/openai.php', 'OpenAI'],
+  ];
+  echo '<nav class="nav">';
+  foreach ($links as $key => $item) {
+    [$href, $label] = $item;
+    $class = $key === $active ? 'active' : '';
+    echo '<a class="' . $class . '" href="' . h($href) . '">' . h($label) . '</a>';
+  }
+  echo '</nav>';
 }
 
 function require_login(array $cfg): void {
@@ -52,6 +71,7 @@ function require_login(array $cfg): void {
   }
 
   render_header('Вход в админку');
+  render_nav('admin');
   echo '<h1>Вход в админку</h1>';
   if ($err) echo '<p class="bad">' . h($err) . '</p>';
   echo '<form method="post">
@@ -84,6 +104,7 @@ if (empty($cfg['admin_password_hash'])) {
   }
 
   render_header('Установка пароля');
+  render_nav('admin');
   echo '<h1>Первичная настройка</h1>';
   echo '<p class="hint">Сначала установите пароль для админки.</p>';
   if ($flash) echo '<p class="bad">' . h($flash) . '</p>';
@@ -115,6 +136,11 @@ if (!empty($_POST['save_settings'])) {
   $new['openai_api_key'] = trim((string)($_POST['openai_api_key'] ?? ''));
   $new['openai_model'] = trim((string)($_POST['openai_model'] ?? 'gpt-4.1-mini'));
   $new['openai_max_output_tokens'] = (int)($_POST['openai_max_output_tokens'] ?? 260);
+
+  $new['avito_api_base'] = trim((string)($_POST['avito_api_base'] ?? 'https://api.avito.ru'));
+  $new['avito_client_id'] = trim((string)($_POST['avito_client_id'] ?? ''));
+  $new['avito_client_secret'] = trim((string)($_POST['avito_client_secret'] ?? ''));
+  $new['avito_access_token'] = trim((string)($_POST['avito_access_token'] ?? ''));
 
   $new['tg_bot_token'] = trim((string)($_POST['tg_bot_token'] ?? ''));
   $new['tg_chat_id'] = trim((string)($_POST['tg_chat_id'] ?? ''));
@@ -156,76 +182,17 @@ $webhookUrl = ((isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'http
   . '://' . ($_SERVER['HTTP_HOST'] ?? 'bunchflowers.ru') . '/avito/webhook.php';
 
 render_header('Avito Bot Admin');
+render_nav('admin');
 
 echo '<h1>Настройки бота</h1>';
 if ($flash) echo '<p class="ok">' . h($flash) . '</p>';
-
-echo '<div class="card">';
-echo '<h3>Статус MySQL</h3>';
-echo '<p class="' . ($dbStatus['ok'] ? 'ok' : 'bad') . '">' . h($dbStatus['msg']) . '</p>';
-echo '<div class="hint">Таблицы создаются через migrate.sql в выбранной базе.</div>';
-echo '</div>';
 
 echo '<form method="post">';
 echo '<input type="hidden" name="save_settings" value="1">';
 
 echo '<div class="card">
-  <h3>URL вебхука</h3>
-  <code>' . h($webhookUrl) . '</code>
-  <div class="hint">Этот URL указываете в интеграторе/CRM как endpoint для входящих сообщений.</div>
-</div>';
-
-echo '<div class="card">
-  <h3>Безопасность вебхука</h3>
-  <label>Webhook secret (проверяем заголовок <code>X-Webhook-Secret</code>)</label>
-  <input name="webhook_secret" value="' . h((string)$cfg['webhook_secret']) . '" placeholder="секрет (опционально)">
-  <label>Allow IPs (через запятую/пробел)</label>
-  <input name="allow_ips" value="' . h(implode(', ', (array)$cfg['allow_ips'])) . '" placeholder="1.2.3.4, 5.6.7.8">
-  <div class="hint">Если список пуст — принимаем запросы со всех IP.</div>
-</div>';
-
-echo '<div class="card">
-  <h3>OpenAI</h3>
-  <label>API key</label>
-  <input name="openai_api_key" value="' . h((string)$cfg['openai_api_key']) . '" placeholder="sk-...">
-  <div class="row">
-    <div>
-      <label>Model</label>
-      <input name="openai_model" value="' . h((string)$cfg['openai_model']) . '">
-    </div>
-    <div>
-      <label>Max output tokens</label>
-      <input type="number" name="openai_max_output_tokens" value="' . h((string)$cfg['openai_max_output_tokens']) . '">
-    </div>
-  </div>
-</div>';
-
-echo '<div class="card">
-  <h3>Telegram уведомления</h3>
-  <label>Bot token</label>
-  <input name="tg_bot_token" value="' . h((string)$cfg['tg_bot_token']) . '" placeholder="123:ABC...">
-  <label>Chat ID</label>
-  <input name="tg_chat_id" value="' . h((string)$cfg['tg_chat_id']) . '" placeholder="-100... или 123456">
-  <label>Когда слать</label>
-  <select name="tg_notify_mode">
-    <option value="handoff" ' . ($cfg['tg_notify_mode']==='handoff'?'selected':'') . '>Только когда “передать менеджеру”</option>
-    <option value="always" ' . ($cfg['tg_notify_mode']==='always'?'selected':'') . '>Всегда (каждое сообщение)</option>
-    <option value="never" ' . ($cfg['tg_notify_mode']==='never'?'selected':'') . '>Никогда</option>
-  </select>
-</div>';
-
-echo '<div class="card">
-  <h3>Лидоген</h3>
-  <label>Режим</label>
-  <select name="lead_capture_mode">
-    <option value="soft" ' . ($cfg['lead_capture_mode']==='soft'?'selected':'') . '>Soft (без просьбы телефона)</option>
-    <option value="ask_phone" ' . ($cfg['lead_capture_mode']==='ask_phone'?'selected':'') . '>Ask phone (просим номер)</option>
-  </select>
-  <div class="hint">Soft — безопаснее: имя + дата/время, общение остаётся в чате.</div>
-</div>';
-
-echo '<div class="card">
-  <h3>MySQL (сессии / история / лиды)</h3>
+  <h3>1. Настройка базы данных (MySQL)</h3>
+  <p class="' . ($dbStatus['ok'] ? 'ok' : 'bad') . '">' . h($dbStatus['msg']) . '</p>
   <label>
     <input type="checkbox" name="mysql_enabled" value="1" ' . (!empty($cfg['mysql_enabled']) ? 'checked' : '') . '>
     Включить MySQL-хранилище
@@ -254,7 +221,75 @@ echo '<div class="card">
   </div>
   <label>Table prefix (опционально)</label>
   <input name="mysql_prefix" value="' . h((string)$cfg['mysql_prefix']) . '" placeholder="bf_">
-  <div class="hint">Таблицы создайте из файла <code>migrate.sql</code> в выбранной базе.</div>
+  <div class="hint">Таблицы создаются через <code>migrate.sql</code> в выбранной базе.</div>
+</div>';
+
+echo '<div class="card">
+  <h3>2. Настройка связи с Telegram ботом</h3>
+  <label>Bot token</label>
+  <input name="tg_bot_token" value="' . h((string)$cfg['tg_bot_token']) . '" placeholder="123:ABC...">
+  <label>Chat ID</label>
+  <input name="tg_chat_id" value="' . h((string)$cfg['tg_chat_id']) . '" placeholder="-100... или 123456">
+  <label>Когда слать уведомления</label>
+  <select name="tg_notify_mode">
+    <option value="handoff" ' . ($cfg['tg_notify_mode']==='handoff'?'selected':'') . '>Только когда “передать менеджеру”</option>
+    <option value="always" ' . ($cfg['tg_notify_mode']==='always'?'selected':'') . '>Всегда (каждое сообщение)</option>
+    <option value="never" ' . ($cfg['tg_notify_mode']==='never'?'selected':'') . '>Никогда</option>
+  </select>
+  <div class="hint">Webhook и ручные сообщения настраиваются на странице <a href="/avito/telegram.php">Telegram</a>.</div>
+</div>';
+
+echo '<div class="card">
+  <h3>3. Настройка связи с Avito по API</h3>
+  <label>API base URL</label>
+  <input name="avito_api_base" value="' . h((string)$cfg['avito_api_base']) . '" placeholder="https://api.avito.ru">
+  <div class="row">
+    <div>
+      <label>Client ID</label>
+      <input name="avito_client_id" value="' . h((string)$cfg['avito_client_id']) . '">
+    </div>
+    <div>
+      <label>Client secret</label>
+      <input type="password" name="avito_client_secret" value="' . h((string)$cfg['avito_client_secret']) . '">
+    </div>
+  </div>
+  <label>Access token</label>
+  <input name="avito_access_token" value="' . h((string)$cfg['avito_access_token']) . '" placeholder="Bearer ...">
+  <div class="row">
+    <div>
+      <label>Webhook URL</label>
+      <input value="' . h($webhookUrl) . '" readonly>
+    </div>
+    <div>
+      <label>Webhook secret (заголовок <code>X-Webhook-Secret</code>)</label>
+      <input name="webhook_secret" value="' . h((string)$cfg['webhook_secret']) . '" placeholder="секрет (опционально)">
+    </div>
+  </div>
+  <label>Allow IPs (через запятую/пробел)</label>
+  <input name="allow_ips" value="' . h(implode(', ', (array)$cfg['allow_ips'])) . '" placeholder="1.2.3.4, 5.6.7.8">
+  <label>Лидоген</label>
+  <select name="lead_capture_mode">
+    <option value="soft" ' . ($cfg['lead_capture_mode']==='soft'?'selected':'') . '>Soft (без просьбы телефона)</option>
+    <option value="ask_phone" ' . ($cfg['lead_capture_mode']==='ask_phone'?'selected':'') . '>Ask phone (просим номер)</option>
+  </select>
+  <div class="hint">Soft — безопаснее: имя + дата/время, общение остаётся в чате.</div>
+</div>';
+
+echo '<div class="card">
+  <h3>4. Настройка связи с OpenAI</h3>
+  <label>API key</label>
+  <input name="openai_api_key" value="' . h((string)$cfg['openai_api_key']) . '" placeholder="sk-...">
+  <div class="row">
+    <div>
+      <label>Model</label>
+      <input name="openai_model" value="' . h((string)$cfg['openai_model']) . '">
+    </div>
+    <div>
+      <label>Max output tokens</label>
+      <input type="number" name="openai_max_output_tokens" value="' . h((string)$cfg['openai_max_output_tokens']) . '">
+    </div>
+  </div>
+  <div class="hint">Ручной чат доступен на странице <a href="/avito/openai.php">OpenAI</a>.</div>
 </div>';
 
 echo '<button type="submit">Сохранить</button>';
