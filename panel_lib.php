@@ -27,8 +27,6 @@ function panel_default_settings(): array {
     'avito_webhook_receiver_url' => '',
     'avito_webhook_secret_header' => 'X-Webhook-Secret',
     'avito_webhook_secret_value' => '',
-    'avito_send_url' => '',
-    'avito_send_auth_header' => '',
 
     // Telegram
     'tg_webhook_url' => '',

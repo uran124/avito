@@ -56,9 +56,35 @@ function tg_reply(string $botToken, string $chatId, string $text): void {
   }
 }
 
-function avito_send_message(string $url, string $authHeader, string $chatId, string $text): array {
-  $headers = ['Content-Type: application/json'];
-  if ($authHeader !== '') $headers[] = $authHeader;
+function avito_auth_header(string $token): string {
+  $token = trim($token);
+  if ($token === '') return '';
+  if (stripos($token, 'bearer ') === 0) return 'Authorization: ' . $token;
+  return 'Authorization: Bearer ' . $token;
+}
+
+function avito_send_message(array $cfg, string $chatId, string $text): array {
+  $userId = trim((string)($cfg['avito_user_id'] ?? ''));
+  $token = trim((string)($cfg['avito_access_token'] ?? ''));
+  $base = trim((string)($cfg['avito_api_base'] ?? 'https://api.avito.ru'));
+  $base = rtrim($base, '/');
+
+  if ($userId === '') {
+    return ['ok' => false, 'status' => 0, 'error' => 'avito_user_id пустой'];
+  }
+  if ($token === '') {
+    return ['ok' => false, 'status' => 0, 'error' => 'avito_access_token пустой'];
+  }
+
+  $url = $base . '/messenger/v1/accounts/' . rawurlencode($userId) . '/chats/' . rawurlencode($chatId) . '/messages';
+  $headers = [
+    'Content-Type: application/json',
+    avito_auth_header($token),
+  ];
+  $payload = [
+    'type' => 'text',
+    'message' => ['text' => $text],
+  ];
 
   $ch = curl_init($url);
   curl_setopt_array($ch, [
@@ -66,7 +92,7 @@ function avito_send_message(string $url, string $authHeader, string $chatId, str
     CURLOPT_RETURNTRANSFER => true,
     CURLOPT_TIMEOUT => 20,
     CURLOPT_HTTPHEADER => $headers,
-    CURLOPT_POSTFIELDS => json_encode(['chat_id' => $chatId, 'text' => $text], JSON_UNESCAPED_UNICODE),
+    CURLOPT_POSTFIELDS => json_encode($payload, JSON_UNESCAPED_UNICODE),
   ]);
   $raw = curl_exec($ch);
   $err = curl_error($ch);
@@ -125,18 +151,15 @@ if (mb_strpos($cmd, '/ping') === 0) {
 if (mb_strpos($cmd, '/help') === 0 || mb_strpos($cmd, '/start') === 0) {
   $help = "Команды:\n"
     . "/ping — проверка бота\n"
-    . "/avito <chat_id> <текст> — отправить сообщение в Avito через avito_send_url";
+    . "/avito <chat_id> <текст> — отправить сообщение в Avito через официальный API";
   tg_reply((string)$cfg['tg_bot_token'], $chatId, $help);
   echo json_encode(['ok' => true], JSON_UNESCAPED_UNICODE);
   exit;
 }
 
 if (mb_strpos($cmd, '/avito') === 0) {
-  $sendUrl = trim((string)($settings['avito_send_url'] ?? ''));
-  $authHeader = trim((string)($settings['avito_send_auth_header'] ?? ''));
-
-  if ($sendUrl === '') {
-    tg_reply((string)$cfg['tg_bot_token'], $chatId, 'Не задан avito_send_url на странице Avito (avito.php)');
+  if (trim((string)($cfg['avito_user_id'] ?? '')) === '' || trim((string)($cfg['avito_access_token'] ?? '')) === '') {
+    tg_reply((string)$cfg['tg_bot_token'], $chatId, 'Не заданы avito_user_id или avito_access_token в админке');
     echo json_encode(['ok' => true], JSON_UNESCAPED_UNICODE);
     exit;
   }
@@ -155,7 +178,7 @@ if (mb_strpos($cmd, '/avito') === 0) {
     exit;
   }
 
-  $res = avito_send_message($sendUrl, $authHeader, $targetChatId, $msgText);
+  $res = avito_send_message($cfg, $targetChatId, $msgText);
   if ($res['ok']) {
     tg_reply((string)$cfg['tg_bot_token'], $chatId, "Отправлено в Avito: {$targetChatId}");
   } else {
