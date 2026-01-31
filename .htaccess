@@ -1,0 +1,16 @@
+Options -Indexes
+
+RewriteEngine On
+
+# Закрыть доступ к приватной папке
+RewriteRule ^_private/ - [F,L]
+
+# Запретить доступ к потенциально чувствительным файлам
+<FilesMatch "\.(json|log|env|ini|bak|sql)$">
+  Require all denied
+</FilesMatch>
+
+# Если хотите дополнительно закрыть админку по IP — раскомментируйте и укажите IP:
+# <Files "admin.php">
+#   Require ip 1.2.3.4
+# </Files>
