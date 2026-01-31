@@ -10,7 +10,7 @@ https://bunchflowers.ru/avito/
 - даёт веб-панель управления + логи,
 - умеет поднять Telegram webhook для команд/служебных действий.
 
-> Важно: ChatGPT не “встраивается в Avito”. Работает схема **Avito → ваш webhook → OpenAI → ответ в Avito**.
+> Важно: ChatGPT не “встраивается в Avito”. Работает схема **Avito → ваш webhook → LLM (OpenAI/DeepSeek) → ответ в Avito**.
 
 
 ---
@@ -18,12 +18,13 @@ https://bunchflowers.ru/avito/
 ## 1) Что внутри
 
 ### Основные возможности
-- **/avito/webhook.php** — входящий webhook для Avito (или вашего интегратора/CRM), генерирует ответ через OpenAI.
+- **/avito/webhook.php** — входящий webhook для Avito (или вашего интегратора/CRM), генерирует ответ через выбранный LLM (OpenAI/DeepSeek).
 - **Telegram уведомления** (Bot API): отправка лидов/событий в TG.
 - **MySQL (опционально)**: хранение диалогов, сообщений, лидов.
 - **/avito/telegram.php** — управление Telegram webhook, ручные отправки и логи.
 - **/avito/avito.php** — статусы Avito, ручные отправки, диалоги (если MySQL включен).
 - **/avito/openai.php** — ручной чат с OpenAI и логи.
+- **/avito/deepseek.php** — ручной чат с DeepSeek и логи.
 - **/avito/tg_webhook.php** — приёмник Telegram webhook (для команд, тестов, служебной отправки в Avito через `avito_send_url`).
 - **/avito/admin.php** — базовые настройки (ключи/секреты) + включение MySQL.
 
@@ -35,6 +36,7 @@ admin.php
 telegram.php
 avito.php
 openai.php
+deepseek.php
 webhook.php
 tg_webhook.php
 
@@ -51,6 +53,7 @@ app.log
 in.log
 out.log
 openai.log
+deepseek.log
 db.log
 tg.log
 tg_webhook.log
@@ -67,7 +70,7 @@ tg_webhook.log
 2) Сервер:
    - пишет логи,
    - сохраняет историю в MySQL (если включено) или в файл,
-   - зовёт OpenAI,
+   - зовёт выбранный LLM (OpenAI/DeepSeek),
    - возвращает JSON с `reply_text`.
 
 > Важно: точный формат событий Avito зависит от того, как вы подключаете Avito Messenger API или какой “прокси” используете. `webhook.php` старается быть терпимым к структуре payload.
@@ -101,7 +104,7 @@ tg_webhook.log
 ## 4) Требования
 
 - PHP 8.0+ (желательно 8.1/8.2)
-- Расширение **cURL** (для OpenAI и Telegram)
+- Расширение **cURL** или включённый `allow_url_fopen` (для OpenAI/DeepSeek и Telegram)
 - MySQL 5.7+/8.0 (опционально)
 - Права на запись в `/avito/_private/`
 
@@ -135,10 +138,14 @@ tg_webhook.log
 - `webhook_secret` — если задан, `webhook.php` будет требовать заголовок `X-Webhook-Secret: <secret>`
 - `allow_ips` — если заполнено, принимает запросы только от этих IP
 
-### OpenAI
+### LLM (OpenAI/DeepSeek)
+- `llm_provider` — провайдер ответов (`openai` или `deepseek`)
 - `openai_api_key` — ключ из OpenAI API (Developer Platform)
 - `openai_model` — модель (например `gpt-4.1-mini`)
 - `openai_max_output_tokens` — ограничение длины ответа
+- `deepseek_api_key` — ключ из DeepSeek API
+- `deepseek_model` — модель (например `deepseek-chat`)
+- `deepseek_max_output_tokens` — ограничение длины ответа
 
 ### Telegram
 - `tg_bot_token` — токен Telegram-бота
@@ -192,6 +199,7 @@ curl -X POST https://ВАШ_ДОМЕН/avito/webhook.php \
 https://ВАШ_ДОМЕН/avito/telegram.php
 https://ВАШ_ДОМЕН/avito/avito.php
 https://ВАШ_ДОМЕН/avito/openai.php
+https://ВАШ_ДОМЕН/avito/deepseek.php
 
 Telegram:
 
@@ -206,6 +214,10 @@ Avito:
 - диалоги (если MySQL включен)
 
 OpenAI:
+
+- ручной чат и просмотр логов
+
+DeepSeek:
 
 - ручной чат и просмотр логов
 
@@ -251,6 +263,7 @@ in.log — входящие Avito
 out.log — ответы Avito
 
 openai.log — ошибки/ответы OpenAI
+deepseek.log — ошибки/ответы DeepSeek
 
 tg.log — уведомления в TG
 
