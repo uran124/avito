@@ -144,6 +144,7 @@ if (!empty($_POST['save_settings'])) {
 
   $new['tg_bot_token'] = trim((string)($_POST['tg_bot_token'] ?? ''));
   $new['tg_chat_id'] = trim((string)($_POST['tg_chat_id'] ?? ''));
+  $new['tg_thread_id'] = trim((string)($_POST['tg_thread_id'] ?? ''));
   $new['tg_notify_mode'] = (string)($_POST['tg_notify_mode'] ?? 'handoff');
 
   $new['lead_capture_mode'] = (string)($_POST['lead_capture_mode'] ?? 'soft');
@@ -230,6 +231,9 @@ echo '<div class="card">
   <input name="tg_bot_token" value="' . h((string)$cfg['tg_bot_token']) . '" placeholder="123:ABC...">
   <label>Chat ID</label>
   <input name="tg_chat_id" value="' . h((string)$cfg['tg_chat_id']) . '" placeholder="-100... или 123456">
+  <label>Thread ID (topic)</label>
+  <input name="tg_thread_id" value="' . h((string)$cfg['tg_thread_id']) . '" placeholder="например 12345">
+  <div class="hint">Если пишете в тему группы, укажите message_thread_id.</div>
   <label>Когда слать уведомления</label>
   <select name="tg_notify_mode">
     <option value="handoff" ' . ($cfg['tg_notify_mode']==='handoff'?'selected':'') . '>Только когда “передать менеджеру”</option>

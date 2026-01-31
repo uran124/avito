@@ -38,13 +38,16 @@ function tg_delete_webhook(string $botToken, bool $dropPending): array {
   return http_request_json('POST', $url, $payload, [], 15);
 }
 
-function tg_send_message(string $botToken, string $chatId, string $text): array {
+function tg_send_message(string $botToken, string $chatId, string $text, string $threadId = ''): array {
   $url = tg_api_base($botToken) . '/sendMessage';
   $payload = [
     'chat_id' => $chatId,
     'text' => $text,
     'disable_web_page_preview' => true,
   ];
+  if (trim($threadId) !== '') {
+    $payload['message_thread_id'] = (int)$threadId;
+  }
   return http_request_json('POST', $url, $payload, [], 12);
 }
 
@@ -227,6 +230,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
   if ($action === 'send_tg_manual') {
     $to = trim((string)($_POST['tg_to'] ?? ''));
+    $threadId = trim((string)($_POST['tg_thread_id'] ?? ''));
     $text = trim((string)($_POST['tg_text'] ?? ''));
     if (empty($cfg['tg_bot_token'])) {
       $flash = 'В config не задан tg_bot_token ❌';
@@ -234,11 +238,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } elseif ($to === '') {
       $flash = 'Telegram chat_id пустой ❌';
       $flashType = 'bad';
+    } elseif ($threadId !== '' && !ctype_digit($threadId)) {
+      $flash = 'Thread ID должен быть числом ❌';
+      $flashType = 'bad';
     } elseif ($text === '') {
       $flash = 'Текст пустой ❌';
       $flashType = 'bad';
     } else {
-      $res = tg_send_message((string)$cfg['tg_bot_token'], $to, $text);
+      $res = tg_send_message((string)$cfg['tg_bot_token'], $to, $text, $threadId);
       if ($res['ok']) {
         $flash = 'Отправлено в Telegram ✅';
         $flashType = 'ok';
@@ -368,6 +375,10 @@ if (is_array($tgInfo) && isset($tgInfo['result']) && is_array($tgInfo['result'])
 
     <label>Кому (chat_id)</label>
     <input name="tg_to" value="<?=h((string)($cfg['tg_chat_id'] ?? ''))?>" placeholder="-100... или 123456">
+
+    <label>Thread ID (topic)</label>
+    <input name="tg_thread_id" value="<?=h((string)($cfg['tg_thread_id'] ?? ''))?>" placeholder="например 12345">
+    <div class="hint">Укажите, если отправляете в тему группы (message_thread_id).</div>
 
     <label>Текст</label>
     <textarea name="tg_text" placeholder="сообщение"></textarea>
