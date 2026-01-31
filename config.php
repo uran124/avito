@@ -29,6 +29,12 @@ function avito_default_config(): array {
     'openai_model' => 'gpt-4.1-mini',
     'openai_max_output_tokens' => 260,
 
+    // Avito API
+    'avito_api_base' => 'https://api.avito.ru',
+    'avito_client_id' => '',
+    'avito_client_secret' => '',
+    'avito_access_token' => '',
+
     // Telegram
     'tg_bot_token' => '',
     'tg_chat_id' => '',
