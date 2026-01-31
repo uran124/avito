@@ -154,6 +154,60 @@ function extract_openai_text(array $resp): string {
   return trim(implode("\n", $texts));
 }
 
+function deepseek_chat_create(array $cfg, string $instructions, string $input): array {
+  if (empty($cfg['deepseek_api_key'])) {
+    return ['_error' => 'DeepSeek key is empty'];
+  }
+
+  $url = 'https://api.deepseek.com/v1/chat/completions';
+  $messages = [];
+  if (trim($instructions) !== '') {
+    $messages[] = ['role' => 'system', 'content' => $instructions];
+  }
+  $messages[] = ['role' => 'user', 'content' => $input];
+
+  $body = [
+    'model' => $cfg['deepseek_model'] ?: 'deepseek-chat',
+    'messages' => $messages,
+    'max_tokens' => (int)($cfg['deepseek_max_output_tokens'] ?? 260),
+  ];
+
+  $ch = curl_init($url);
+  curl_setopt_array($ch, [
+    CURLOPT_POST => true,
+    CURLOPT_RETURNTRANSFER => true,
+    CURLOPT_TIMEOUT => 20,
+    CURLOPT_HTTPHEADER => [
+      'Content-Type: application/json',
+      'Authorization: Bearer ' . $cfg['deepseek_api_key'],
+    ],
+    CURLOPT_POSTFIELDS => json_encode($body, JSON_UNESCAPED_UNICODE),
+  ]);
+
+  $raw = curl_exec($ch);
+  $err = curl_error($ch);
+  $status = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+  curl_close($ch);
+
+  if ($err) return ['_error' => "cURL error: $err"];
+  if ($status >= 400) return ['_error' => "HTTP $status", '_raw' => $raw];
+
+  $json = json_decode((string)$raw, true);
+  if (!is_array($json)) return ['_error' => 'Bad JSON from DeepSeek', '_raw' => $raw];
+
+  return $json;
+}
+
+function extract_deepseek_text(array $resp): string {
+  if (isset($resp['choices'][0]['message']['content'])) {
+    $content = $resp['choices'][0]['message']['content'];
+    if (is_string($content) && trim($content) !== '') {
+      return trim($content);
+    }
+  }
+  return '';
+}
+
 /** =========================
  * File fallback (если MySQL недоступен)
  * ========================= */
@@ -297,19 +351,34 @@ $instructions =
   "Пиши 1–3 коротких предложения. В конце — один вопрос, чтобы продвинуть к заказу.\n";
 
 /** =========================
- * Call OpenAI
+ * Call LLM provider
  * ========================= */
 
-$resp = openai_responses_create($cfg, $instructions, $text);
+$provider = (string)($cfg['llm_provider'] ?? 'openai');
+$resp = [];
+$reply = '';
+$fallbackReply = "Подскажите, пожалуйста: сколько роз нужно и на какую дату/время?";
 
-if (isset($resp['_error'])) {
-  avito_log("OpenAI error: " . $resp['_error'] . " raw=" . ($resp['_raw'] ?? ''), 'openai.log');
-  $reply = "Подскажите, пожалуйста: сколько роз нужно и на какую дату/время?";
-} else {
-  $reply = extract_openai_text($resp);
-  if ($reply === '') {
-    $reply = "Подскажите, пожалуйста: сколько роз нужно и на какую дату/время?";
+if ($provider === 'deepseek') {
+  $resp = deepseek_chat_create($cfg, $instructions, $text);
+  if (isset($resp['_error'])) {
+    avito_log("DeepSeek error: " . $resp['_error'] . " raw=" . ($resp['_raw'] ?? ''), 'deepseek.log');
+    $reply = $fallbackReply;
+  } else {
+    $reply = extract_deepseek_text($resp);
   }
+} else {
+  $resp = openai_responses_create($cfg, $instructions, $text);
+  if (isset($resp['_error'])) {
+    avito_log("OpenAI error: " . $resp['_error'] . " raw=" . ($resp['_raw'] ?? ''), 'openai.log');
+    $reply = $fallbackReply;
+  } else {
+    $reply = extract_openai_text($resp);
+  }
+}
+
+if ($reply === '') {
+  $reply = $fallbackReply;
 }
 
 // Guard: на всякий — если вдруг модель попыталась назвать страну/сорт и т.п.
