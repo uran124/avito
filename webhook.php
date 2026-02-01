@@ -49,6 +49,7 @@ if (!$webhookEnabled) {
 
 function extract_text(array $payload): string {
   $candidates = [
+    $payload['payload']['value']['content']['text'] ?? null,
     $payload['payload']['value']['message']['text'] ?? null,
     $payload['payload']['message']['text'] ?? null,
     $payload['message']['text'] ?? null,
@@ -260,12 +261,16 @@ $raw = file_get_contents('php://input') ?: '';
 $payload = json_decode($raw, true);
 if (!is_array($payload)) $payload = $_POST ?: [];
 
+$rawPayload = $raw !== '' ? $raw : json_encode($payload, JSON_UNESCAPED_UNICODE);
+if (!is_string($rawPayload)) $rawPayload = '';
+if ($rawPayload !== '') {
+  avito_log('RAW ' . substr($rawPayload, 0, 4000), 'webhook_raw.log');
+}
+
 $chatId = extract_chat_id($payload);
 $text = extract_text($payload);
 
 if ($text === '') {
-  $rawPayload = json_encode($payload, JSON_UNESCAPED_UNICODE);
-  if (!is_string($rawPayload)) $rawPayload = '';
   avito_log('IN empty payload=' . substr($rawPayload, 0, 2000), 'in.log');
   echo json_encode(['ok' => true, 'reply_text' => ''], JSON_UNESCAPED_UNICODE);
   exit;
