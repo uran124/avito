@@ -19,6 +19,10 @@ if (is_file($panelSettingsFile)) {
 $webhookEnabled = !array_key_exists('avito_webhook_enabled', $panelSettings)
   ? true
   : (bool)$panelSettings['avito_webhook_enabled'];
+$webhookSecretHeader = trim((string)($panelSettings['avito_webhook_secret_header'] ?? ''));
+if ($webhookSecretHeader === '') $webhookSecretHeader = 'X-Webhook-Secret';
+$webhookSecretValue = trim((string)($panelSettings['avito_webhook_secret_value'] ?? ''));
+if ($webhookSecretValue === '') $webhookSecretValue = trim((string)($cfg['webhook_secret'] ?? ''));
 
 /** =========================
  * Helpers
@@ -45,11 +49,14 @@ if (!$webhookEnabled) {
 
 function extract_text(array $payload): string {
   $candidates = [
+    $payload['payload']['value']['message']['text'] ?? null,
+    $payload['payload']['message']['text'] ?? null,
     $payload['message']['text'] ?? null,
     $payload['message_text'] ?? null,
     $payload['text'] ?? null,
     $payload['data']['text'] ?? null,
     $payload['body']['text'] ?? null,
+    $payload['message']['content']['text'] ?? null,
   ];
   foreach ($candidates as $c) {
     if (is_string($c) && trim($c) !== '') return trim($c);
@@ -59,6 +66,9 @@ function extract_text(array $payload): string {
 
 function extract_chat_id(array $payload): string {
   $candidates = [
+    $payload['payload']['value']['conversation_id'] ?? null,
+    $payload['payload']['value']['chat_id'] ?? null,
+    $payload['payload']['conversation_id'] ?? null,
     $payload['chat_id'] ?? null,
     $payload['conversation_id'] ?? null,
     $payload['dialog_id'] ?? null,
@@ -235,9 +245,9 @@ if (!empty($cfg['allow_ips']) && is_array($cfg['allow_ips'])) {
   }
 }
 
-if (!empty($cfg['webhook_secret'])) {
-  $secret = get_header('X-Webhook-Secret');
-  if ($secret !== (string)$cfg['webhook_secret']) {
+if ($webhookSecretValue !== '') {
+  $secret = get_header($webhookSecretHeader);
+  if ($secret !== $webhookSecretValue) {
     deny(401, 'Bad webhook secret');
   }
 }
@@ -254,6 +264,9 @@ $chatId = extract_chat_id($payload);
 $text = extract_text($payload);
 
 if ($text === '') {
+  $rawPayload = json_encode($payload, JSON_UNESCAPED_UNICODE);
+  if (!is_string($rawPayload)) $rawPayload = '';
+  avito_log('IN empty payload=' . substr($rawPayload, 0, 2000), 'in.log');
   echo json_encode(['ok' => true, 'reply_text' => ''], JSON_UNESCAPED_UNICODE);
   exit;
 }
