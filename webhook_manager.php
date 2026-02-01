@@ -11,11 +11,16 @@ $settings = panel_load_settings();
 
 $flash = '';
 $flashType = 'ok';
+$testResult = null;
 
 $baseUrl = current_base_url();
 $autoWebhookUrl = $baseUrl . '/avito/webhook.php';
 $webhookReceiverUrlRaw = trim((string)($settings['avito_webhook_receiver_url'] ?? ''));
 $webhookUrl = $webhookReceiverUrlRaw === '' ? $autoWebhookUrl : $webhookReceiverUrlRaw;
+$webhookSecretHeader = trim((string)($settings['avito_webhook_secret_header'] ?? ''));
+if ($webhookSecretHeader === '') $webhookSecretHeader = 'X-Webhook-Secret';
+$webhookSecretValue = trim((string)($settings['avito_webhook_secret_value'] ?? ''));
+if ($webhookSecretValue === '') $webhookSecretValue = trim((string)($cfg['webhook_secret'] ?? ''));
 
 function avito_auth_header(string $token): string {
   $token = trim($token);
@@ -28,6 +33,41 @@ function avito_api_base(array $cfg): string {
   $base = trim((string)($cfg['avito_api_base'] ?? 'https://api.avito.ru'));
   if ($base === '') $base = 'https://api.avito.ru';
   return rtrim($base, '/');
+}
+
+function avito_webhook_headers(string $headerName, string $headerValue): array {
+  if ($headerValue === '') return [];
+  return [$headerName . ': ' . $headerValue];
+}
+
+function avito_test_payload(array $cfg): array {
+  $userId = trim((string)($cfg['avito_user_id'] ?? ''));
+  return [
+    'payload' => [
+      'value' => [
+        'author_id' => $userId !== '' ? (int)$userId : 12345678,
+        'chat_id' => 'test_chat_' . time(),
+        'content' => [
+          'text' => 'Тестовое сообщение для проверки webhook (' . date('Y-m-d H:i:s') . ')',
+        ],
+        'created' => time(),
+        'direction' => 'in',
+        'id' => 'test_msg_' . uniqid('', true),
+        'type' => 'text',
+      ],
+    ],
+  ];
+}
+
+function avito_log_dir_status(): array {
+  $dir = AVITO_LOG_DIR;
+  return [
+    'dir' => $dir,
+    'exists' => is_dir($dir),
+    'readable' => is_readable($dir),
+    'writable' => is_writable($dir),
+    'permissions' => is_dir($dir) ? substr(sprintf('%o', fileperms($dir)), -4) : 'N/A',
+  ];
 }
 
 // Получение текущего статуса webhook
@@ -152,6 +192,44 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       $flashType = 'bad';
     }
   }
+
+  if ($action === 'test_access') {
+    $headers = avito_webhook_headers($webhookSecretHeader, $webhookSecretValue);
+    $res = http_request_json('GET', $webhookUrl, [], $headers, 15);
+    $ok = $res['ok'] || $res['status'] === 400;
+    $testResult = [
+      'title' => 'Проверка доступности webhook',
+      'ok' => $ok,
+      'status' => $res['status'],
+      'error' => $res['error'] !== '' ? $res['error'] : '',
+      'response' => is_string($res['raw']) ? $res['raw'] : '',
+    ];
+  }
+
+  if ($action === 'test_webhook') {
+    $headers = avito_webhook_headers($webhookSecretHeader, $webhookSecretValue);
+    $payload = avito_test_payload($cfg);
+    $res = http_request_json('POST', $webhookUrl, $payload, $headers, 20);
+    $testResult = [
+      'title' => 'Отправка тестового webhook',
+      'ok' => $res['ok'],
+      'status' => $res['status'],
+      'error' => $res['error'] !== '' ? $res['error'] : '',
+      'response' => is_string($res['raw']) ? $res['raw'] : '',
+      'payload' => $payload,
+    ];
+  }
+
+  if ($action === 'check_logs') {
+    $logStatus = avito_log_dir_status();
+    $testResult = [
+      'title' => 'Проверка прав на логи',
+      'ok' => $logStatus['exists'] && $logStatus['writable'],
+      'status' => 0,
+      'error' => '',
+      'response' => json_encode($logStatus, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT),
+    ];
+  }
 }
 
 // Получаем текущий статус
@@ -252,6 +330,28 @@ if ($flash !== '') {
     </div>
   </div>
 
+  <?php
+    $allowIps = (array)($cfg['allow_ips'] ?? []);
+    $tokenExpired = avito_token_is_expired($cfg);
+  ?>
+
+  <div style="margin-top:8px">
+    <div class="pill <?= !$tokenExpired ? 'ok' : 'bad' ?>">
+      Token expiration: <?= !$tokenExpired ? 'Не истёк ✅' : 'Истёк ❌' ?>
+    </div>
+  </div>
+
+  <div style="margin-top:8px">
+    <div class="pill <?= empty($allowIps) ? 'ok' : 'bad' ?>">
+      Allow IPs: <?= empty($allowIps) ? 'НЕ ОГРАНИЧЕНО ✅' : 'НАСТРОЕНО ⚠️' ?>
+    </div>
+    <?php if (!empty($allowIps)): ?>
+      <div style="margin-top:6px;font-size:13px;color:#555">
+        Разрешённые IP: <?= h(implode(', ', $allowIps)) ?>
+      </div>
+    <?php endif; ?>
+  </div>
+
   <?php if ($userId === ''): ?>
     <div style="margin-top:12px;padding:12px;background:#fdecee;border:1px solid #f3b5bd;border-radius:8px">
       <strong style="color:#b00020">⚠️ User ID не задан!</strong><br>
@@ -293,7 +393,48 @@ if ($flash !== '') {
 
   <div style="margin-top:12px">
     <a href="/avito/avito.php" class="pill">Перейти к логам →</a>
+    <a href="/avito/test_webhook.php" class="pill">Открыть тестовую страницу →</a>
   </div>
+
+  <form method="post" style="margin-top:16px;display:flex;gap:10px;flex-wrap:wrap">
+    <input type="hidden" name="csrf_token" value="<?=h(csrf_token())?>">
+    <button type="submit" name="action" value="test_access" class="secondary">
+      Проверить доступность webhook
+    </button>
+    <button type="submit" name="action" value="test_webhook">
+      Отправить тестовый webhook
+    </button>
+    <button type="submit" name="action" value="check_logs" class="secondary">
+      Проверить права на логи
+    </button>
+  </form>
+
+  <?php if (is_array($testResult)): ?>
+    <div style="margin-top:12px;padding:12px;background:#f7f7f7;border:1px solid #eee;border-radius:8px">
+      <strong><?= h((string)($testResult['title'] ?? 'Тест')) ?></strong><br>
+      <div style="margin-top:6px">
+        Статус: <?= !empty($testResult['ok']) ? '<span style="color:#0a7a2a">OK ✅</span>' : '<span style="color:#b00020">Ошибка ❌</span>' ?>
+        <?php if (!empty($testResult['status'])): ?>
+          <span style="margin-left:8px">HTTP <?= h((string)$testResult['status']) ?></span>
+        <?php endif; ?>
+      </div>
+      <?php if (!empty($testResult['error'])): ?>
+        <div style="margin-top:6px;color:#b00020;font-size:13px">
+          Ошибка: <?= h((string)$testResult['error']) ?>
+        </div>
+      <?php endif; ?>
+      <?php if (!empty($testResult['response'])): ?>
+        <div style="margin-top:8px;font-family:monospace;font-size:12px;white-space:pre-wrap">
+          <?= h((string)$testResult['response']) ?>
+        </div>
+      <?php endif; ?>
+      <?php if (!empty($testResult['payload'])): ?>
+        <div style="margin-top:8px;font-family:monospace;font-size:12px;white-space:pre-wrap">
+          <?= h(json_encode($testResult['payload'], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT)) ?>
+        </div>
+      <?php endif; ?>
+    </div>
+  <?php endif; ?>
 </div>
 
 <div class="card">
