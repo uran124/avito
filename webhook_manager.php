@@ -13,7 +13,22 @@ $flash = '';
 $flashType = 'ok';
 
 $baseUrl = current_base_url();
-$webhookUrl = $baseUrl . '/avito/webhook.php';
+$autoWebhookUrl = $baseUrl . '/avito/webhook.php';
+$webhookReceiverUrlRaw = trim((string)($settings['avito_webhook_receiver_url'] ?? ''));
+$webhookUrl = $webhookReceiverUrlRaw === '' ? $autoWebhookUrl : $webhookReceiverUrlRaw;
+
+function avito_auth_header(string $token): string {
+  $token = trim($token);
+  if ($token === '') return '';
+  if (stripos($token, 'bearer ') === 0) return 'Authorization: ' . $token;
+  return 'Authorization: Bearer ' . $token;
+}
+
+function avito_api_base(array $cfg): string {
+  $base = trim((string)($cfg['avito_api_base'] ?? 'https://api.avito.ru'));
+  if ($base === '') $base = 'https://api.avito.ru';
+  return rtrim($base, '/');
+}
 
 // Получение текущего статуса webhook
 function avito_get_webhook_status(array $cfg): array {
@@ -22,35 +37,15 @@ function avito_get_webhook_status(array $cfg): array {
     return ['ok' => false, 'error' => 'Access token пустой'];
   }
 
-  $url = 'https://api.avito.ru/messenger/v1/subscriptions';
-  $headers = [
-    'Authorization: Bearer ' . $token,
-    'Content-Type: application/json'
-  ];
+  $url = avito_api_base($cfg) . '/messenger/v1/subscriptions';
+  $headers = [avito_auth_header($token)];
 
-  $ch = curl_init($url);
-  curl_setopt_array($ch, [
-    CURLOPT_POST => true,
-    CURLOPT_RETURNTRANSFER => true,
-    CURLOPT_TIMEOUT => 20,
-    CURLOPT_HTTPHEADER => $headers,
-  ]);
-
-  $response = curl_exec($ch);
-  $httpCode = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
-  $curlError = curl_error($ch);
-  curl_close($ch);
-
-  if ($curlError !== '') {
-    return ['ok' => false, 'error' => $curlError];
+  $res = http_request_json('GET', $url, [], $headers, 20);
+  if (!$res['ok']) {
+    return ['ok' => false, 'error' => $res['error'] !== '' ? $res['error'] : ("HTTP " . $res['status']), 'response' => $res['raw']];
   }
 
-  if ($httpCode < 200 || $httpCode >= 300) {
-    return ['ok' => false, 'error' => "HTTP {$httpCode}", 'response' => $response];
-  }
-
-  $json = json_decode((string)$response, true);
-  return ['ok' => true, 'data' => $json];
+  return ['ok' => true, 'data' => $res['json'] ?? []];
 }
 
 // Регистрация webhook в Avito
@@ -60,40 +55,19 @@ function avito_register_webhook(array $cfg, string $url): array {
     return ['ok' => false, 'error' => 'Access token пустой'];
   }
 
-  $apiUrl = 'https://api.avito.ru/messenger/v3/webhook';
-  $headers = [
-    'Authorization: Bearer ' . $token,
-    'Content-Type: application/json'
-  ];
-
+  $apiUrl = avito_api_base($cfg) . '/messenger/v3/webhook';
+  $headers = [avito_auth_header($token)];
   $payload = ['url' => $url];
 
-  $ch = curl_init($apiUrl);
-  curl_setopt_array($ch, [
-    CURLOPT_POST => true,
-    CURLOPT_RETURNTRANSFER => true,
-    CURLOPT_TIMEOUT => 20,
-    CURLOPT_HTTPHEADER => $headers,
-    CURLOPT_POSTFIELDS => json_encode($payload, JSON_UNESCAPED_UNICODE),
-  ]);
+  $res = http_request_json('POST', $apiUrl, $payload, $headers, 20);
 
-  $response = curl_exec($ch);
-  $httpCode = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
-  $curlError = curl_error($ch);
-  curl_close($ch);
+  avito_log("Register webhook: url={$url}, code={$res['status']}, response={$res['raw']}", 'webhook_register.log');
 
-  avito_log("Register webhook: url={$url}, code={$httpCode}, response={$response}", 'webhook_register.log');
-
-  if ($curlError !== '') {
-    return ['ok' => false, 'error' => $curlError];
+  if (!$res['ok']) {
+    return ['ok' => false, 'error' => $res['error'] !== '' ? $res['error'] : ("HTTP " . $res['status']), 'response' => $res['raw']];
   }
 
-  if ($httpCode < 200 || $httpCode >= 300) {
-    return ['ok' => false, 'error' => "HTTP {$httpCode}", 'response' => $response];
-  }
-
-  $json = json_decode((string)$response, true);
-  return ['ok' => true, 'data' => $json];
+  return ['ok' => true, 'data' => $res['json'] ?? []];
 }
 
 // Удаление webhook из Avito
@@ -103,40 +77,19 @@ function avito_unregister_webhook(array $cfg, string $url): array {
     return ['ok' => false, 'error' => 'Access token пустой'];
   }
 
-  $apiUrl = 'https://api.avito.ru/messenger/v3/webhook/unsubscribe';
-  $headers = [
-    'Authorization: Bearer ' . $token,
-    'Content-Type: application/json'
-  ];
-
+  $apiUrl = avito_api_base($cfg) . '/messenger/v3/webhook';
+  $headers = [avito_auth_header($token)];
   $payload = ['url' => $url];
 
-  $ch = curl_init($apiUrl);
-  curl_setopt_array($ch, [
-    CURLOPT_POST => true,
-    CURLOPT_RETURNTRANSFER => true,
-    CURLOPT_TIMEOUT => 20,
-    CURLOPT_HTTPHEADER => $headers,
-    CURLOPT_POSTFIELDS => json_encode($payload, JSON_UNESCAPED_UNICODE),
-  ]);
+  $res = http_request_json('DELETE', $apiUrl, $payload, $headers, 20);
 
-  $response = curl_exec($ch);
-  $httpCode = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
-  $curlError = curl_error($ch);
-  curl_close($ch);
+  avito_log("Unregister webhook: url={$url}, code={$res['status']}, response={$res['raw']}", 'webhook_register.log');
 
-  avito_log("Unregister webhook: url={$url}, code={$httpCode}, response={$response}", 'webhook_register.log');
-
-  if ($curlError !== '') {
-    return ['ok' => false, 'error' => $curlError];
+  if (!$res['ok']) {
+    return ['ok' => false, 'error' => $res['error'] !== '' ? $res['error'] : ("HTTP " . $res['status']), 'response' => $res['raw']];
   }
 
-  if ($httpCode < 200 || $httpCode >= 300) {
-    return ['ok' => false, 'error' => "HTTP {$httpCode}", 'response' => $response];
-  }
-
-  $json = json_decode((string)$response, true);
-  return ['ok' => true, 'data' => $json];
+  return ['ok' => true, 'data' => $res['json'] ?? []];
 }
 
 // Обработка действий
@@ -193,6 +146,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       panel_save_settings($newSettings);
     } else {
       $flash = 'Ошибка удаления webhook: ' . ($result['error'] ?? 'unknown') . ' ❌';
+      if (!empty($result['response'])) {
+        $flash .= ' | Response: ' . $result['response'];
+      }
       $flashType = 'bad';
     }
   }
