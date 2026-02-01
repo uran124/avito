@@ -19,6 +19,10 @@ if (is_file($panelSettingsFile)) {
 $webhookEnabled = !array_key_exists('avito_webhook_enabled', $panelSettings)
   ? true
   : (bool)$panelSettings['avito_webhook_enabled'];
+$webhookSecretHeader = trim((string)($panelSettings['avito_webhook_secret_header'] ?? ''));
+if ($webhookSecretHeader === '') $webhookSecretHeader = 'X-Webhook-Secret';
+$webhookSecretValue = trim((string)($panelSettings['avito_webhook_secret_value'] ?? ''));
+if ($webhookSecretValue === '') $webhookSecretValue = trim((string)($cfg['webhook_secret'] ?? ''));
 
 /** =========================
  * Helpers
@@ -235,9 +239,9 @@ if (!empty($cfg['allow_ips']) && is_array($cfg['allow_ips'])) {
   }
 }
 
-if (!empty($cfg['webhook_secret'])) {
-  $secret = get_header('X-Webhook-Secret');
-  if ($secret !== (string)$cfg['webhook_secret']) {
+if ($webhookSecretValue !== '') {
+  $secret = get_header($webhookSecretHeader);
+  if ($secret !== $webhookSecretValue) {
     deny(401, 'Bad webhook secret');
   }
 }
