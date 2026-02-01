@@ -42,39 +42,16 @@ function avito_is_route_not_found(array $res): bool {
   return str_contains($raw, 'route') && str_contains($raw, 'not found');
 }
 
-function avito_webhook_endpoints(array $cfg): array {
-  $base = avito_api_base($cfg);
-  return [
-    $base . '/messenger/v3/webhook',
-    $base . '/messenger/v1/webhook',
-    $base . '/messenger/v1/subscriptions',
-  ];
-}
-
-function avito_request_webhook(array $cfg, string $method, array $payload = []): array {
+function avito_request_webhook(array $cfg, string $method, string $endpoint, array $payload = []): array {
   $token = trim((string)($cfg['avito_access_token'] ?? ''));
   if ($token === '') {
     return ['ok' => false, 'error' => 'Access token пустой', 'status' => 0, 'raw' => ''];
   }
 
   $headers = [avito_auth_header($token)];
-  $last = ['ok' => false, 'status' => 0, 'error' => 'Unknown error', 'raw' => '', 'json' => null];
-
-  foreach (avito_webhook_endpoints($cfg) as $endpoint) {
-    $res = http_request_json($method, $endpoint, $payload, $headers, 20);
-    $last = $res;
-    if ($res['ok']) {
-      $res['endpoint'] = $endpoint;
-      return $res;
-    }
-    if (!avito_is_route_not_found($res)) {
-      $res['endpoint'] = $endpoint;
-      return $res;
-    }
-  }
-
-  $last['endpoint'] = avito_webhook_endpoints($cfg)[0] ?? '';
-  return $last;
+  $res = http_request_json($method, $endpoint, $payload, $headers, 20);
+  $res['endpoint'] = $endpoint;
+  return $res;
 }
 
 function avito_webhook_headers(string $headerName, string $headerValue): array {
@@ -118,7 +95,9 @@ function avito_log_dir_status(): array {
 
 // Получение текущего статуса webhook
 function avito_get_webhook_status(array $cfg): array {
-  $res = avito_request_webhook($cfg, 'GET');
+  $base = avito_api_base($cfg);
+  $endpoint = $base . '/messenger/v1/subscriptions';
+  $res = avito_request_webhook($cfg, 'POST', $endpoint);
   if (!$res['ok']) {
     return ['ok' => false, 'error' => $res['error'] !== '' ? $res['error'] : ("HTTP " . $res['status']), 'response' => $res['raw']];
   }
@@ -140,8 +119,14 @@ function avito_get_webhook_status(array $cfg): array {
 // Регистрация webhook в Avito
 function avito_register_webhook(array $cfg, string $url): array {
   $payload = ['url' => $url];
+  $base = avito_api_base($cfg);
+  $endpoint = $base . '/messenger/v3/webhook';
+  $res = avito_request_webhook($cfg, 'POST', $endpoint, $payload);
 
-  $res = avito_request_webhook($cfg, 'POST', $payload);
+  if (!$res['ok'] && avito_is_route_not_found($res)) {
+    $legacyEndpoint = $base . '/messenger/v1/webhook';
+    $res = avito_request_webhook($cfg, 'POST', $legacyEndpoint, $payload);
+  }
 
   avito_log("Register webhook: url={$url}, endpoint=" . ($res['endpoint'] ?? 'n/a') . ", code={$res['status']}, response={$res['raw']}", 'webhook_register.log');
 
@@ -155,8 +140,14 @@ function avito_register_webhook(array $cfg, string $url): array {
 // Удаление webhook из Avito
 function avito_unregister_webhook(array $cfg, string $url): array {
   $payload = ['url' => $url];
+  $base = avito_api_base($cfg);
+  $endpoint = $base . '/messenger/v1/webhook/unsubscribe';
+  $res = avito_request_webhook($cfg, 'POST', $endpoint, $payload);
 
-  $res = avito_request_webhook($cfg, 'DELETE', $payload);
+  if (!$res['ok'] && avito_is_route_not_found($res)) {
+    $legacyEndpoint = $base . '/messenger/v3/webhook';
+    $res = avito_request_webhook($cfg, 'DELETE', $legacyEndpoint, $payload);
+  }
 
   avito_log("Unregister webhook: url={$url}, endpoint=" . ($res['endpoint'] ?? 'n/a') . ", code={$res['status']}, response={$res['raw']}", 'webhook_register.log');
 
