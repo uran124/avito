@@ -2,11 +2,25 @@
 // /avito/admin.php
 declare(strict_types=1);
 
-require_once __DIR__ . '/config.php';
-require_once __DIR__ . '/db.php';
+require_once __DIR__ . '/panel_lib.php';
 
-session_start();
 $cfg = avito_get_config();
+$panelSettings = panel_load_settings();
+
+$avitoPresets = [
+  'personal' => [
+    'label' => 'Приложение персональной авторизации',
+    'client_id' => 'ANdFZJ6O-_o_xWGIy8Y_',
+    'client_secret' => 'KWMx9CZZokbXY3C9aqXH7hKpvuVG8iC-3hM3BxdP',
+    'redirect_url' => '',
+  ],
+  'bunchflowers' => [
+    'label' => 'Bunchflowers Avito',
+    'client_id' => 'pVaQ6UXXz1KOQEZuCMTY',
+    'client_secret' => 'Mn9-d3RopfABBi3Rt3kIKEcKyQg-Ztu3jrXSEuBU',
+    'redirect_url' => 'https://bunchflowers.ru/avito/avito_oauth_callback.php',
+  ],
+];
 
 function is_logged_in(): bool {
   return !empty($_SESSION['admin_ok']);
@@ -129,6 +143,8 @@ $dbStatus = ['ok' => false, 'msg' => 'MySQL выключен в настройк
 
 if (!empty($_POST['save_settings'])) {
   $new = $cfg;
+  $panelNew = $panelSettings;
+  $selectedPreset = (string)($_POST['avito_credential_preset'] ?? 'custom');
 
   $new['webhook_secret'] = trim((string)($_POST['webhook_secret'] ?? ''));
   $ips = trim((string)($_POST['allow_ips'] ?? ''));
@@ -143,8 +159,14 @@ if (!empty($_POST['save_settings'])) {
   $new['llm_provider'] = (string)($_POST['llm_provider'] ?? 'yandex');
 
   $new['avito_api_base'] = trim((string)($_POST['avito_api_base'] ?? 'https://api.avito.ru'));
-  $new['avito_client_id'] = trim((string)($_POST['avito_client_id'] ?? ''));
-  $new['avito_client_secret'] = trim((string)($_POST['avito_client_secret'] ?? ''));
+  $new['avito_credential_preset'] = $selectedPreset;
+  if ($selectedPreset !== 'custom' && isset($avitoPresets[$selectedPreset])) {
+    $new['avito_client_id'] = $avitoPresets[$selectedPreset]['client_id'];
+    $new['avito_client_secret'] = $avitoPresets[$selectedPreset]['client_secret'];
+  } else {
+    $new['avito_client_id'] = trim((string)($_POST['avito_client_id'] ?? ''));
+    $new['avito_client_secret'] = trim((string)($_POST['avito_client_secret'] ?? ''));
+  }
   $new['avito_access_token'] = trim((string)($_POST['avito_access_token'] ?? ''));
   $new['avito_refresh_token'] = trim((string)($_POST['avito_refresh_token'] ?? ''));
   $new['avito_token_expires_at'] = (int)($_POST['avito_token_expires_at'] ?? 0);
@@ -165,8 +187,18 @@ if (!empty($_POST['save_settings'])) {
   $new['mysql_pass'] = (string)($_POST['mysql_pass'] ?? '');
   $new['mysql_prefix'] = trim((string)($_POST['mysql_prefix'] ?? ''));
 
-  if (avito_save_config($new)) {
+  $panelNew['avito_webhook_receiver_url'] = trim((string)($_POST['avito_webhook_receiver_url'] ?? ''));
+  $panelNew['avito_webhook_secret_header'] = trim((string)($_POST['avito_webhook_secret_header'] ?? 'X-Webhook-Secret'));
+  $panelNew['avito_webhook_secret_value'] = trim((string)($_POST['avito_webhook_secret_value'] ?? ''));
+  $panelNew['messages_limit'] = (int)($_POST['messages_limit'] ?? ($panelSettings['messages_limit'] ?? 60));
+  $panelNew['log_tail_lines'] = (int)($_POST['log_tail_lines'] ?? ($panelSettings['log_tail_lines'] ?? 200));
+
+  $configSaved = avito_save_config($new);
+  $panelSaved = panel_save_settings($panelNew);
+
+  if ($configSaved && $panelSaved) {
     $cfg = $new;
+    $panelSettings = $panelNew;
     $flash = 'Сохранено ✅';
     $flashClass = 'ok';
   } else {
@@ -218,6 +250,10 @@ render_nav('admin');
 
 echo '<h1>Настройки бота</h1>';
 if ($flash) echo '<p class="' . h($flashClass) . '">' . h($flash) . '</p>';
+
+$selectedPreset = (string)($cfg['avito_credential_preset'] ?? 'custom');
+$presetClientId = ($selectedPreset !== 'custom' && isset($avitoPresets[$selectedPreset])) ? $avitoPresets[$selectedPreset]['client_id'] : (string)$cfg['avito_client_id'];
+$presetClientSecret = ($selectedPreset !== 'custom' && isset($avitoPresets[$selectedPreset])) ? $avitoPresets[$selectedPreset]['client_secret'] : (string)$cfg['avito_client_secret'];
 
 echo '<form method="post">';
 echo '<input type="hidden" name="save_settings" value="1">';
@@ -278,16 +314,24 @@ echo '<div class="card">
   <h3>3. Настройка связи с Avito по API</h3>
   <label>API base URL</label>
   <input name="avito_api_base" value="' . h((string)$cfg['avito_api_base']) . '" placeholder="https://api.avito.ru">
+  <label>Режим авторизации</label>
+  <select name="avito_credential_preset">
+    <option value="custom" ' . ($selectedPreset === 'custom' ? 'selected' : '') . '>Свой Client ID/Secret</option>
+    <option value="personal" ' . ($selectedPreset === 'personal' ? 'selected' : '') . '>Приложение персональной авторизации</option>
+    <option value="bunchflowers" ' . ($selectedPreset === 'bunchflowers' ? 'selected' : '') . '>Bunchflowers Avito (OAuth)</option>
+  </select>
   <div class="row">
     <div>
       <label>Client ID</label>
-      <input name="avito_client_id" value="' . h((string)$cfg['avito_client_id']) . '">
+      <input name="avito_client_id" value="' . h($presetClientId) . '">
     </div>
     <div>
       <label>Client secret</label>
-      <input type="password" name="avito_client_secret" value="' . h((string)$cfg['avito_client_secret']) . '">
+      <input type="password" name="avito_client_secret" value="' . h($presetClientSecret) . '">
     </div>
   </div>
+  <div class="hint">Для персональной авторизации используйте preset “Приложение персональной авторизации”.</div>
+  <div class="hint">Redirect URL для приложения Bunchflowers: <code>' . h($avitoPresets['bunchflowers']['redirect_url']) . '</code></div>
   <label>Access token</label>
   <input name="avito_access_token" value="' . h((string)$cfg['avito_access_token']) . '" placeholder="ACCESS_TOKEN">
   <div class="hint">Access/Refresh токены появляются после OAuth-авторизации или client_credentials.</div>
@@ -324,6 +368,33 @@ echo '<div class="card">
     <option value="ask_phone" ' . ($cfg['lead_capture_mode']==='ask_phone'?'selected':'') . '>Ask phone (просим номер)</option>
   </select>
   <div class="hint">Soft — безопаснее: имя + дата/время, общение остаётся в чате.</div>
+</div>';
+
+echo '<div class="card">
+  <h3>3.1. Webhook Avito + лимиты логов</h3>
+  <label>Webhook receiver URL (если пусто — авто)</label>
+  <input name="avito_webhook_receiver_url" value="' . h((string)$panelSettings['avito_webhook_receiver_url']) . '" placeholder="' . h($webhookUrl) . '">
+  <div class="row">
+    <div>
+      <label>Secret header name</label>
+      <input name="avito_webhook_secret_header" value="' . h((string)$panelSettings['avito_webhook_secret_header']) . '" placeholder="X-Webhook-Secret">
+    </div>
+    <div>
+      <label>Secret value (если пусто — берём из admin webhook_secret)</label>
+      <input name="avito_webhook_secret_value" value="' . h((string)$panelSettings['avito_webhook_secret_value']) . '" placeholder="(пусто)">
+    </div>
+  </div>
+  <div class="row">
+    <div>
+      <label>Лимит диалогов (20–200)</label>
+      <input type="number" name="messages_limit" value="' . h((string)($panelSettings['messages_limit'] ?? 60)) . '" min="20" max="200">
+    </div>
+    <div>
+      <label>Хвост логов (50–2000)</label>
+      <input type="number" name="log_tail_lines" value="' . h((string)($panelSettings['log_tail_lines'] ?? 200)) . '" min="50" max="2000">
+    </div>
+  </div>
+  <div class="hint">Данные сохраняются в <code>/avito/_private/panel_settings.json</code>.</div>
 </div>';
 
 echo '<div class="card">

@@ -56,14 +56,16 @@ $settings = panel_load_settings();
 $baseUrl = current_base_url();
 $autoAvitoWebhookUrl = $baseUrl . '/avito/webhook.php';
 
-$avitoWebhookReceiverUrl = trim((string)$settings['avito_webhook_receiver_url']);
-if ($avitoWebhookReceiverUrl === '') $avitoWebhookReceiverUrl = $autoAvitoWebhookUrl;
+$avitoWebhookReceiverUrlRaw = trim((string)$settings['avito_webhook_receiver_url']);
+$avitoWebhookReceiverUrl = $avitoWebhookReceiverUrlRaw === '' ? $autoAvitoWebhookUrl : $avitoWebhookReceiverUrlRaw;
 
 $avitoSecretHeader = trim((string)$settings['avito_webhook_secret_header']);
 if ($avitoSecretHeader === '') $avitoSecretHeader = 'X-Webhook-Secret';
 
 $avitoSecretValue = trim((string)$settings['avito_webhook_secret_value']);
 if ($avitoSecretValue === '') $avitoSecretValue = (string)($cfg['webhook_secret'] ?? '');
+
+$avitoWebhookEnabled = !array_key_exists('avito_webhook_enabled', $settings) ? true : (bool)$settings['avito_webhook_enabled'];
 
 $messagesLimit = max(20, min(200, (int)($settings['messages_limit'] ?? 60)));
 $logTailLines = max(50, min(2000, (int)($settings['log_tail_lines'] ?? 200)));
@@ -75,20 +77,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   csrf_check();
   $action = (string)($_POST['action'] ?? '');
 
-  if ($action === 'save_avito_settings') {
+  if ($action === 'enable_webhook' || $action === 'disable_webhook') {
     $new = $settings;
-    $new['avito_webhook_receiver_url'] = trim((string)($_POST['avito_webhook_receiver_url'] ?? ''));
-    $new['avito_webhook_secret_header'] = trim((string)($_POST['avito_webhook_secret_header'] ?? 'X-Webhook-Secret'));
-    $new['avito_webhook_secret_value'] = trim((string)($_POST['avito_webhook_secret_value'] ?? ''));
-    $new['messages_limit'] = (int)($_POST['messages_limit'] ?? $messagesLimit);
-    $new['log_tail_lines'] = (int)($_POST['log_tail_lines'] ?? $logTailLines);
-
+    $new['avito_webhook_enabled'] = ($action === 'enable_webhook');
     if (panel_save_settings($new)) {
       $settings = $new;
-      $flash = 'Настройки Avito сохранены ✅';
+      $avitoWebhookEnabled = (bool)$new['avito_webhook_enabled'];
+      $flash = $avitoWebhookEnabled ? 'Webhook включен ✅' : 'Webhook отключен ✅';
       $flashType = 'ok';
     } else {
-      $flash = 'Не удалось сохранить настройки Avito ❌';
+      $flash = 'Не удалось сохранить статус webhook ❌';
       $flashType = 'bad';
     }
   }
@@ -129,12 +127,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 $settings = panel_load_settings();
 
-$avitoWebhookReceiverUrl = trim((string)$settings['avito_webhook_receiver_url']);
-if ($avitoWebhookReceiverUrl === '') $avitoWebhookReceiverUrl = $autoAvitoWebhookUrl;
+$avitoWebhookReceiverUrlRaw = trim((string)$settings['avito_webhook_receiver_url']);
+$avitoWebhookReceiverUrl = $avitoWebhookReceiverUrlRaw === '' ? $autoAvitoWebhookUrl : $avitoWebhookReceiverUrlRaw;
 $avitoSecretHeader = trim((string)$settings['avito_webhook_secret_header']);
 if ($avitoSecretHeader === '') $avitoSecretHeader = 'X-Webhook-Secret';
 $avitoSecretValue = trim((string)$settings['avito_webhook_secret_value']);
 if ($avitoSecretValue === '') $avitoSecretValue = (string)($cfg['webhook_secret'] ?? '');
+$avitoWebhookEnabled = !array_key_exists('avito_webhook_enabled', $settings) ? true : (bool)$settings['avito_webhook_enabled'];
 
 $pdo = null;
 $dbOk = false;
@@ -235,11 +234,19 @@ if ($dbOk && $pdo instanceof PDO) {
   }
 }
 
-$knownLogs = [
-  'in.log' => AVITO_LOG_DIR . '/in.log',
-  'out.log' => AVITO_LOG_DIR . '/out.log',
-  'db.log' => AVITO_LOG_DIR . '/db.log',
-];
+$knownLogs = [];
+foreach (glob(AVITO_LOG_DIR . '/*.log') ?: [] as $path) {
+  $name = basename($path);
+  $knownLogs[$name] = $path;
+}
+if (!$knownLogs) {
+  $knownLogs = [
+    'in.log' => AVITO_LOG_DIR . '/in.log',
+    'out.log' => AVITO_LOG_DIR . '/out.log',
+    'db.log' => AVITO_LOG_DIR . '/db.log',
+  ];
+}
+ksort($knownLogs);
 
 $selectedLog = (string)($_GET['log'] ?? 'in.log');
 if (!isset($knownLogs[$selectedLog])) $selectedLog = 'in.log';
@@ -253,16 +260,35 @@ if ($flash !== '') {
 ?>
 
 <div class="grid">
-  <div class="card">
-    <h2>Статус интеграции</h2>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
-      <span class="pill <?= $avitoActive ? 'ok' : 'warn' ?>">Входящие: <?= $avitoActive ? 'активно' : 'нет событий' ?></span>
-      <span class="pill">Последнее входящее: <span class="mono"><?=h($avitoLastInHuman)?></span></span>
-      <span class="pill">Последнее исходящее: <span class="mono"><?=h($avitoLastOutHuman)?></span></span>
-      <span class="pill <?= $dbOk ? 'ok' : 'warn' ?>">MySQL: <?= $dbOk ? 'подключено' : 'выключено/ошибка' ?></span>
-    </div>
-    <div class="hint" style="margin-top:8px">Webhook endpoint: <code class="mono"><?=h($avitoWebhookReceiverUrl)?></code></div>
+<div class="card">
+  <h2>Статус интеграции</h2>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
+    <span class="pill <?= $avitoActive ? 'ok' : 'warn' ?>">Входящие: <?= $avitoActive ? 'активно' : 'нет событий' ?></span>
+    <span class="pill">Последнее входящее: <span class="mono"><?=h($avitoLastInHuman)?></span></span>
+    <span class="pill">Последнее исходящее: <span class="mono"><?=h($avitoLastOutHuman)?></span></span>
+    <span class="pill <?= $dbOk ? 'ok' : 'warn' ?>">MySQL: <?= $dbOk ? 'подключено' : 'выключено/ошибка' ?></span>
+    <span class="pill <?= $avitoWebhookEnabled ? 'ok' : 'warn' ?>">Webhook: <?= $avitoWebhookEnabled ? 'установлен' : 'отключен' ?></span>
   </div>
+  <div class="hint" style="margin-top:8px">Webhook endpoint: <code class="mono"><?=h($avitoWebhookReceiverUrl)?></code></div>
+  <div class="hint">Secret header: <code class="mono"><?=h($avitoSecretHeader)?></code>, value: <code class="mono"><?=h($avitoSecretValue ?: 'не задан')?></code></div>
+  <form method="post" style="margin-top:10px;display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+    <input type="hidden" name="csrf_token" value="<?=h(csrf_token())?>">
+    <button type="submit" name="action" value="enable_webhook">Установить webhook</button>
+    <button type="submit" name="action" value="disable_webhook" class="secondary">Разорвать webhook</button>
+    <?php
+      $oauthState = bin2hex(random_bytes(12));
+      $_SESSION['avito_oauth_state'] = $oauthState;
+      $oauthUrl = 'https://avito.ru/oauth?' . http_build_query([
+        'response_type' => 'code',
+        'client_id' => (string)($cfg['avito_client_id'] ?? ''),
+        'scope' => 'messenger:read messenger:write',
+        'redirect_uri' => $baseUrl . '/avito/avito_oauth_callback.php',
+        'state' => $oauthState,
+      ]);
+    ?>
+    <a href="<?=h($oauthUrl)?>" class="pill">Запустить авторизацию</a>
+  </form>
+</div>
 
   <div class="card">
     <h2>Быстрые ссылки</h2>
@@ -272,42 +298,6 @@ if ($flash !== '') {
       <div class="pill">Access token: <span class="mono"><?=h(mask_secret((string)($cfg['avito_access_token'] ?? '')))?></span></div>
     </div>
   </div>
-</div>
-
-<div class="card">
-  <h2>Настройки Avito</h2>
-  <div class="hint">Хранятся в <code class="mono">/avito/_private/panel_settings.json</code>.</div>
-  <form method="post">
-    <input type="hidden" name="csrf_token" value="<?=h(csrf_token())?>">
-    <input type="hidden" name="action" value="save_avito_settings">
-
-    <div class="row">
-      <div>
-        <label>Webhook receiver URL (если пусто — авто)</label>
-        <input name="avito_webhook_receiver_url" value="<?=h((string)$settings['avito_webhook_receiver_url'])?>" placeholder="<?=h($autoAvitoWebhookUrl)?>">
-      </div>
-      <div>
-        <label>Secret header name</label>
-        <input name="avito_webhook_secret_header" value="<?=h((string)$settings['avito_webhook_secret_header'])?>" placeholder="X-Webhook-Secret">
-      </div>
-    </div>
-
-    <label>Secret value (если пусто — берём из admin webhook_secret)</label>
-    <input name="avito_webhook_secret_value" value="<?=h((string)$settings['avito_webhook_secret_value'])?>" placeholder="(пусто)">
-
-    <div class="row">
-      <div>
-        <label>Лимит диалогов (20–200)</label>
-        <input type="number" name="messages_limit" value="<?=h((string)($settings['messages_limit'] ?? 60))?>" min="20" max="200">
-      </div>
-      <div>
-        <label>Хвост логов (50–2000)</label>
-        <input type="number" name="log_tail_lines" value="<?=h((string)($settings['log_tail_lines'] ?? 200))?>" min="50" max="2000">
-      </div>
-    </div>
-
-    <button type="submit">Сохранить настройки</button>
-  </form>
 </div>
 
 <div class="card">

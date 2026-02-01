@@ -38,6 +38,7 @@ function avito_default_config(): array {
     'avito_api_base' => 'https://api.avito.ru',
     'avito_client_id' => '',
     'avito_client_secret' => '',
+    'avito_credential_preset' => 'custom',
     'avito_access_token' => '',
     'avito_refresh_token' => '',
     'avito_token_expires_at' => 0,
