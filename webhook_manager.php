@@ -55,7 +55,7 @@ function avito_register_webhook(array $cfg, string $url): array {
     return ['ok' => false, 'error' => 'Access token пустой'];
   }
 
-  $apiUrl = avito_api_base($cfg) . '/messenger/v1/webhook';
+  $apiUrl = avito_api_base($cfg) . '/messenger/v3/webhook';
   $headers = [avito_auth_header($token)];
   $payload = ['url' => $url];
 
@@ -77,7 +77,7 @@ function avito_unregister_webhook(array $cfg, string $url): array {
     return ['ok' => false, 'error' => 'Access token пустой'];
   }
 
-  $apiUrl = avito_api_base($cfg) . '/messenger/v1/webhook';
+  $apiUrl = avito_api_base($cfg) . '/messenger/v3/webhook';
   $headers = [avito_auth_header($token)];
   $payload = ['url' => $url];
 
