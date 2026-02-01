@@ -129,6 +129,22 @@ function http_request_json(string $method, string $url, array $payload = [], arr
     if (is_array($j)) $out['json'] = $j;
   }
 
+  if (!$out['ok'] && $out['error'] === '') {
+    if (is_array($out['json'])) {
+      if (!empty($out['json']['error_description'])) {
+        $out['error'] = (string)$out['json']['error_description'];
+      } elseif (!empty($out['json']['message'])) {
+        $out['error'] = (string)$out['json']['message'];
+      } elseif (!empty($out['json']['error'])) {
+        $out['error'] = is_string($out['json']['error']) ? $out['json']['error'] : json_encode($out['json']['error'], JSON_UNESCAPED_UNICODE);
+      }
+    }
+  }
+
+  if (!$out['ok'] && $out['error'] === '' && is_string($raw) && trim($raw) !== '') {
+    $out['error'] = trim($raw);
+  }
+
   return $out;
 }
 
