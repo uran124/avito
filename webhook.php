@@ -9,6 +9,16 @@ require_once __DIR__ . '/db.php';
 header('Content-Type: application/json; charset=utf-8');
 
 $cfg = avito_get_config();
+$panelSettingsFile = AVITO_PRIVATE_DIR . '/panel_settings.json';
+$panelSettings = [];
+if (is_file($panelSettingsFile)) {
+  $raw = @file_get_contents($panelSettingsFile);
+  $json = json_decode($raw ?: '[]', true);
+  if (is_array($json)) $panelSettings = $json;
+}
+$webhookEnabled = !array_key_exists('avito_webhook_enabled', $panelSettings)
+  ? true
+  : (bool)$panelSettings['avito_webhook_enabled'];
 
 /** =========================
  * Helpers
@@ -27,6 +37,10 @@ function deny(int $code, string $msg): void {
   http_response_code($code);
   echo json_encode(['ok' => false, 'error' => $msg], JSON_UNESCAPED_UNICODE);
   exit;
+}
+
+if (!$webhookEnabled) {
+  deny(410, 'Webhook отключен');
 }
 
 function extract_text(array $payload): string {
