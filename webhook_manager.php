@@ -77,7 +77,7 @@ function avito_get_webhook_status(array $cfg): array {
     return ['ok' => false, 'error' => 'Access token пустой'];
   }
 
-  $url = avito_api_base($cfg) . '/messenger/v1/subscriptions';
+  $url = avito_api_base($cfg) . '/messenger/v3/webhook';
   $headers = [avito_auth_header($token)];
 
   $res = http_request_json('GET', $url, [], $headers, 20);
@@ -85,7 +85,18 @@ function avito_get_webhook_status(array $cfg): array {
     return ['ok' => false, 'error' => $res['error'] !== '' ? $res['error'] : ("HTTP " . $res['status']), 'response' => $res['raw']];
   }
 
-  return ['ok' => true, 'data' => $res['json'] ?? []];
+  $data = $res['json'] ?? [];
+  $subscriptions = [];
+
+  if (isset($data['subscriptions']) && is_array($data['subscriptions'])) {
+    $subscriptions = $data['subscriptions'];
+  } elseif (isset($data['url']) && is_string($data['url']) && $data['url'] !== '') {
+    $subscriptions = [['url' => $data['url']]];
+  } elseif (isset($data['webhook']) && is_array($data['webhook']) && isset($data['webhook']['url'])) {
+    $subscriptions = [['url' => (string)$data['webhook']['url']]];
+  }
+
+  return ['ok' => true, 'data' => ['subscriptions' => $subscriptions]];
 }
 
 // Регистрация webhook в Avito
