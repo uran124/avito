@@ -40,6 +40,10 @@ function avito_webhook_headers(string $headerName, string $headerValue): array {
   return [$headerName . ': ' . $headerValue];
 }
 
+function avito_normalize_url(string $url): string {
+  return rtrim(trim($url), '/');
+}
+
 function avito_test_payload(array $cfg): array {
   $userId = trim((string)($cfg['avito_user_id'] ?? ''));
   return [
@@ -77,15 +81,33 @@ function avito_get_webhook_status(array $cfg): array {
     return ['ok' => false, 'error' => 'Access token пустой'];
   }
 
-  $url = avito_api_base($cfg) . '/messenger/v1/subscriptions';
+  $url = avito_api_base($cfg) . '/messenger/v3/webhook';
   $headers = [avito_auth_header($token)];
 
   $res = http_request_json('GET', $url, [], $headers, 20);
+  if (!$res['ok'] && ($res['status'] === 404 || stripos((string)$res['raw'], 'route') !== false)) {
+    $legacyUrl = avito_api_base($cfg) . '/messenger/v1/subscriptions';
+    $legacyRes = http_request_json('GET', $legacyUrl, [], $headers, 20);
+    if ($legacyRes['ok']) {
+      $res = $legacyRes;
+    }
+  }
   if (!$res['ok']) {
     return ['ok' => false, 'error' => $res['error'] !== '' ? $res['error'] : ("HTTP " . $res['status']), 'response' => $res['raw']];
   }
 
-  return ['ok' => true, 'data' => $res['json'] ?? []];
+  $data = $res['json'] ?? [];
+  $subscriptions = [];
+
+  if (isset($data['subscriptions']) && is_array($data['subscriptions'])) {
+    $subscriptions = $data['subscriptions'];
+  } elseif (isset($data['url']) && is_string($data['url']) && $data['url'] !== '') {
+    $subscriptions = [['url' => $data['url']]];
+  } elseif (isset($data['webhook']) && is_array($data['webhook']) && isset($data['webhook']['url'])) {
+    $subscriptions = [['url' => (string)$data['webhook']['url']]];
+  }
+
+  return ['ok' => true, 'data' => ['subscriptions' => $subscriptions]];
 }
 
 // Регистрация webhook в Avito
@@ -236,11 +258,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $currentStatus = avito_get_webhook_status($cfg);
 $isRegistered = false;
 $registeredUrls = [];
+$normalizedWebhookUrl = avito_normalize_url($webhookUrl);
 
 if ($currentStatus['ok']) {
   $subscriptions = $currentStatus['data']['subscriptions'] ?? [];
   $registeredUrls = array_column($subscriptions, 'url');
-  $isRegistered = in_array($webhookUrl, $registeredUrls, true);
+  $normalizedRegisteredUrls = array_map('avito_normalize_url', $registeredUrls);
+  $isRegistered = in_array($normalizedWebhookUrl, $normalizedRegisteredUrls, true);
 }
 
 render_panel_header('Управление Webhook', 'avito');
@@ -270,7 +294,7 @@ if ($flash !== '') {
       <?php foreach ($registeredUrls as $url): ?>
         <div style="margin:4px 0">
           <code class="mono"><?=h($url)?></code>
-          <?php if ($url === $webhookUrl): ?>
+          <?php if (avito_normalize_url($url) === $normalizedWebhookUrl): ?>
             <span style="color:#0a7a2a">✓ Совпадает</span>
           <?php else: ?>
             <span style="color:#b00020">⚠️ Не совпадает с текущим</span>
