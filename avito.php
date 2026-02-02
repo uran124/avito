@@ -53,19 +53,13 @@ function avito_send_message_api(array &$cfg, string $chatId, string $text): arra
 $cfg = avito_get_config();
 $settings = panel_load_settings();
 
-$baseUrl = current_base_url();
-$autoAvitoWebhookUrl = $baseUrl . '/avito/webhook.php';
+$autoAvitoWebhookUrl = 'https://bunchflowers.ru/avito/webhook.php';
+$avitoWebhookReceiverUrl = $autoAvitoWebhookUrl;
 
-$avitoWebhookReceiverUrlRaw = trim((string)$settings['avito_webhook_receiver_url']);
-$avitoWebhookReceiverUrl = $avitoWebhookReceiverUrlRaw === '' ? $autoAvitoWebhookUrl : $avitoWebhookReceiverUrlRaw;
+$avitoSecretHeader = 'X-Webhook-Secret';
+$avitoSecretValue = (string)($cfg['webhook_secret'] ?? '');
 
-$avitoSecretHeader = trim((string)$settings['avito_webhook_secret_header']);
-if ($avitoSecretHeader === '') $avitoSecretHeader = 'X-Webhook-Secret';
-
-$avitoSecretValue = trim((string)$settings['avito_webhook_secret_value']);
-if ($avitoSecretValue === '') $avitoSecretValue = (string)($cfg['webhook_secret'] ?? '');
-
-$avitoWebhookEnabled = !array_key_exists('avito_webhook_enabled', $settings) ? true : (bool)$settings['avito_webhook_enabled'];
+$avitoWebhookEnabled = true;
 
 $messagesLimit = max(20, min(200, (int)($settings['messages_limit'] ?? 60)));
 $logTailLines = max(50, min(2000, (int)($settings['log_tail_lines'] ?? 200)));
@@ -127,13 +121,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 $settings = panel_load_settings();
 
-$avitoWebhookReceiverUrlRaw = trim((string)$settings['avito_webhook_receiver_url']);
-$avitoWebhookReceiverUrl = $avitoWebhookReceiverUrlRaw === '' ? $autoAvitoWebhookUrl : $avitoWebhookReceiverUrlRaw;
-$avitoSecretHeader = trim((string)$settings['avito_webhook_secret_header']);
-if ($avitoSecretHeader === '') $avitoSecretHeader = 'X-Webhook-Secret';
-$avitoSecretValue = trim((string)$settings['avito_webhook_secret_value']);
-if ($avitoSecretValue === '') $avitoSecretValue = (string)($cfg['webhook_secret'] ?? '');
-$avitoWebhookEnabled = !array_key_exists('avito_webhook_enabled', $settings) ? true : (bool)$settings['avito_webhook_enabled'];
+$avitoWebhookReceiverUrl = $autoAvitoWebhookUrl;
+$avitoSecretHeader = 'X-Webhook-Secret';
+$avitoSecretValue = (string)($cfg['webhook_secret'] ?? '');
+$avitoWebhookEnabled = true;
 
 $pdo = null;
 $dbOk = false;

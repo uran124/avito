@@ -9,20 +9,9 @@ require_once __DIR__ . '/db.php';
 header('Content-Type: application/json; charset=utf-8');
 
 $cfg = avito_get_config();
-$panelSettingsFile = AVITO_PRIVATE_DIR . '/panel_settings.json';
-$panelSettings = [];
-if (is_file($panelSettingsFile)) {
-  $raw = @file_get_contents($panelSettingsFile);
-  $json = json_decode($raw ?: '[]', true);
-  if (is_array($json)) $panelSettings = $json;
-}
-$webhookEnabled = !array_key_exists('avito_webhook_enabled', $panelSettings)
-  ? true
-  : (bool)$panelSettings['avito_webhook_enabled'];
-$webhookSecretHeader = trim((string)($panelSettings['avito_webhook_secret_header'] ?? ''));
-if ($webhookSecretHeader === '') $webhookSecretHeader = 'X-Webhook-Secret';
-$webhookSecretValue = trim((string)($panelSettings['avito_webhook_secret_value'] ?? ''));
-if ($webhookSecretValue === '') $webhookSecretValue = trim((string)($cfg['webhook_secret'] ?? ''));
+$webhookEnabled = true;
+$webhookSecretHeader = 'X-Webhook-Secret';
+$webhookSecretValue = trim((string)($cfg['webhook_secret'] ?? ''));
 
 /** =========================
  * Helpers
@@ -242,14 +231,14 @@ function save_session(string $chatId, array $sess): void {
 
 if (!empty($cfg['allow_ips']) && is_array($cfg['allow_ips'])) {
   if (!empty($cfg['allow_ips']) && !in_array(client_ip(), $cfg['allow_ips'], true)) {
-    deny(403, 'IP not allowed');
+    avito_log("Webhook IP not allowed: " . client_ip(), 'webhook_auth.log');
   }
 }
 
 if ($webhookSecretValue !== '') {
   $secret = get_header($webhookSecretHeader);
   if ($secret !== $webhookSecretValue) {
-    deny(401, 'Bad webhook secret');
+    avito_log('Webhook secret mismatch', 'webhook_auth.log');
   }
 }
 
